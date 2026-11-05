@@ -617,8 +617,14 @@ render();
     var box=$("dList");
     box.innerHTML='<p>جارٍ التحميل… <small dir="ltr">'+APP_VER+'</small></p>';
     try{
-      withTimeout(D.collection("patients").where("doctorId","==",uid).get({source:"server"}),12000)
+      var guard=setTimeout(function(){
+        if(box.innerHTML.indexOf("جارٍ التحميل")!==-1){
+          box.innerHTML='<div class="res bad">انتهت مهلة التحميل. اضغط «تحديث القائمة» مرة أخرى.</div>';
+        }
+      },15000);
+      withTimeout(D.collection("patients").where("doctorId","==",uid).limit(50).get({source:"server"}),12000)
         .then(function(snap){
+          clearTimeout(guard);
           var rows=[];
           snap.forEach(function(d){rows.push({id:d.id,name:d.data().name||""})});
           if(!rows.length){box.innerHTML="<p>لا يوجد مرضى بعد. أضف أول مريض من الأعلى.</p>";return}
@@ -638,6 +644,7 @@ render();
           });
         })
         .catch(function(e){
+          clearTimeout(guard);
           console.error(e);
           box.innerHTML='<div class="res bad">تعذّر تحميل المرضى. اضغط «تحديث القائمة» أو تأكد من الاتصال.<br><small dir="ltr">'+esc((e&&(e.code||e.message))||"unknown")+'</small></div>';
         });
