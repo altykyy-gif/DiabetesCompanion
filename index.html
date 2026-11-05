@@ -604,34 +604,47 @@ render();
       p.then(function(v){clearTimeout(t);res(v)},function(e){clearTimeout(t);rej(e)});
     });
   }
-  var unsub=null; // لم يعد مستخدماً (الاستماع المباشر متوقف على هذه الشبكة)
-  // قراءة مباشرة من الخادم (وهي تعمل حسب فحص الاتصال)
+  var unsub=null;
+  var APP_VER="v14";
+  // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
+  function draw(rows){
+    $("dList").innerHTML=rows.map(function(r){
+      var lv=r.lv||{t:"جارٍ حساب الحالة…",c:""};
+      return '<div class="card"><b>'+esc(r.name)+'</b><div class="res '+lv.c+'" style="margin:8px 0 0">'+lv.t+'</div></div>';
+    }).join("")+'<p class="note" dir="ltr">'+APP_VER+'</p>';
+  }
   function load(uid){
-    $("dList").innerHTML="<p>جارٍ التحميل…</p>";
-    withTimeout(D.collection("patients").where("doctorId","==",uid).get({source:"server"}),12000)
-      .then(function(snap){
-        var rows=[];
-        snap.forEach(function(d){rows.push({id:d.id,name:d.data().name||""})});
-        if(!rows.length){$("dList").innerHTML="<p>لا يوجد مرضى بعد. أضف أول مريض من الأعلى.</p>";return}
-        return Promise.all(rows.map(function(r){
-          return withTimeout(
-            D.collection("patients").doc(r.id).collection("readings").orderBy("ts","desc").limit(5).get({source:"server"}),
-            8000
-          ).then(function(rs){
-            var vs=[];rs.forEach(function(x){vs.push(Number(x.data().v))});
-            r.lv=level(vs);return r;
-          }).catch(function(){r.lv=level([]);return r});
-        })).then(function(all){
-          all.sort(function(a,b){return (a.lv.k-b.lv.k)||a.name.localeCompare(b.name,"ar")});
-          $("dList").innerHTML=all.map(function(r){
-            return '<div class="card"><b>'+esc(r.name)+'</b><div class="res '+r.lv.c+'" style="margin:8px 0 0">'+r.lv.t+'</div></div>';
-          }).join("");
+    var box=$("dList");
+    box.innerHTML='<p>جارٍ التحميل… <small dir="ltr">'+APP_VER+'</small></p>';
+    try{
+      withTimeout(D.collection("patients").where("doctorId","==",uid).get({source:"server"}),12000)
+        .then(function(snap){
+          var rows=[];
+          snap.forEach(function(d){rows.push({id:d.id,name:d.data().name||""})});
+          if(!rows.length){box.innerHTML="<p>لا يوجد مرضى بعد. أضف أول مريض من الأعلى.</p>";return}
+          rows.sort(function(a,b){return a.name.localeCompare(b.name,"ar")});
+          draw(rows);
+          return Promise.all(rows.map(function(r){
+            return withTimeout(
+              D.collection("patients").doc(r.id).collection("readings").orderBy("ts","desc").limit(5).get({source:"server"}),
+              8000
+            ).then(function(rs){
+              var vs=[];rs.forEach(function(x){vs.push(Number(x.data().v))});
+              r.lv=level(vs);
+            }).catch(function(){r.lv=level([])});
+          })).then(function(){
+            rows.sort(function(a,b){return (a.lv.k-b.lv.k)||a.name.localeCompare(b.name,"ar")});
+            draw(rows);
+          });
+        })
+        .catch(function(e){
+          console.error(e);
+          box.innerHTML='<div class="res bad">تعذّر تحميل المرضى. اضغط «تحديث القائمة» أو تأكد من الاتصال.<br><small dir="ltr">'+esc((e&&(e.code||e.message))||"unknown")+'</small></div>';
         });
-      })
-      .catch(function(e){
-        console.error(e);
-        $("dList").innerHTML='<div class="res bad">تعذّر تحميل المرضى. اضغط «تحديث القائمة» أو تأكد من الاتصال.<br><small dir="ltr">'+esc((e&&(e.code||e.message))||"unknown")+'</small></div>';
-      });
+    }catch(e){
+      console.error(e);
+      box.innerHTML='<div class="res bad">خطأ داخلي: '+esc(e.message||e)+'</div>';
+    }
   }
   $("dIn").onclick=function(){
     var em=$("dEmail").value.trim(),pw=$("dPass").value;
