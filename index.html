@@ -578,6 +578,8 @@ render();
 /* 5) لوحة الطبيب: تسجيل الدخول وقائمة المرضى */
 (function(){
   var $=function(i){return document.getElementById(i)};
+  // دالة الهروب محلية هنا، لأن esc في الكتلة الأولى غير مرئية من هذه الكتلة
+  var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})};
   var A=null,D=null;
   try{ if(window.firebase&&firebase.auth&&firebase.firestore){ A=firebase.auth(); D=firebase.firestore(); } }
   catch(e){ console.error("Firebase init:",e); }
@@ -604,7 +606,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v19";
+  var APP_VER="v20";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     $("dList").innerHTML=rows.map(function(r){
