@@ -247,6 +247,8 @@ details p{margin:0;padding:0 16px 14px}
   <h2>📄 تقرير للطبيب</h2>
   <div class="card">
     <p>ملخص قراءاتك وأدويتك في ورقة واحدة لتريها لطبيبك.</p>
+    <label for="pname">اسم المريض (يظهر في التقرير)</label>
+    <input id="pname" type="text" autocomplete="off" placeholder="مثال: أحمد محمد">
     <button class="go" id="rprint">🖨️ اطبع التقرير أو احفظه PDF</button>
     <button class="go sec" id="rshare">📤 أرسله (واتساب وغيره)</button>
     <p class="note">في صفحة الطباعة اختر «حفظ كـ PDF» إن أردت ملفاً.</p>
@@ -274,8 +276,8 @@ details p{margin:0;padding:0 16px 14px}
       <tr><td>نسرين إدريس صفي الدين</td><td>5783</td></tr>
       <tr><td>مبروكة مراجع معزب</td><td>5784</td></tr>
     </table>
-    <p><b>الأستاذ المشرف:</b> علي بوراس</p>
-    <p>جامعة بنغازي – كلية الآداب – فرع سلوق<br>قسم علوم الحاسوب<br>العام الدراسي 2026/2027</p>
+    <p><b>الأستاذ المشرف:</b> حسن الفاخري</p>
+    <p>جامعة بنغازي – كلية الآداب – فرع سلوق<br>قسم علوم الحاسوب<br>العام الدراسي <bdi dir="ltr">2026/2027</bdi></p>
   </div>
   <div class="card">
     <h3 style="margin-top:0">ما الذي يهدف إليه المشروع؟</h3>
@@ -454,11 +456,12 @@ function today(){return new Date().toLocaleDateString("ar-LY",{year:"numeric",mo
 function data(){var a=logs().slice(-15).reverse(),ms=g(MK,[]).slice().sort(function(p,q){return p.t<q.t?-1:1}),vs=a.map(function(r){return r.v});
  return{a:a,ms:ms,avg:vs.length?Math.round(vs.reduce(function(p,c){return p+c},0)/vs.length):0,mx:vs.length?Math.max.apply(null,vs):0,mn:vs.length?Math.min.apply(null,vs):0}}
 function wh(r){return r.w==="f"?"صائم":"بعد الأكل"}
-function text(){var d=data(),t="تقرير متابعة السكر – رفيق السكري\nالتاريخ: "+today()+"\n\n";
+function pname(){return (document.getElementById("pname").value||"").trim()}
+function text(){var d=data(),pn=pname(),t="تقرير متابعة السكر – رفيق السكري\n"+(pn?"اسم المريض: "+pn+"\n":"")+"التاريخ: "+today()+"\n\n";
  t+=d.a.length?"القراءات (الأحدث أولاً):\n"+d.a.map(function(r){return "• "+r.v+" mg/dL – "+wh(r)+" – "+r.d+" – "+r.t}).join("\n")+"\n\nالمتوسط: "+d.avg+" | الأعلى: "+d.mx+" | الأدنى: "+d.mn:"لا توجد قراءات مسجلة.";
  t+="\n\nالأدوية:\n"+(d.ms.length?d.ms.map(function(m){return "• "+m.n+" – "+fmt(m.t)+(m.o?" ("+m.o+")":"")}).join("\n"):"لا توجد أدوية مسجلة.");
  return t+"\n\nملاحظة: التقرير من تطبيق إرشادي ولا يغني عن الفحص الطبي."}
-document.getElementById("rprint").onclick=function(){var d=data(),h='<h2>تقرير متابعة السكر – رفيق السكري</h2><p>الاسم: ____________________ &nbsp; التاريخ: '+today()+'</p>';
+document.getElementById("rprint").onclick=function(){var d=data(),h='<h2>تقرير متابعة السكر – رفيق السكري</h2><p>الاسم: '+(pname()?esc(pname()):'____________________')+' &nbsp; التاريخ: '+today()+'</p>';
  h+=d.a.length?'<table><tr><th>القراءة (mg/dL)</th><th>الوقت</th><th>التاريخ</th><th>التقييم</th></tr>'+d.a.map(function(r){return '<tr><td>'+r.v+'</td><td>'+wh(r)+'</td><td>'+esc(r.d)+'</td><td>'+esc(r.t)+'</td></tr>'}).join("")+'</table><p>المتوسط: '+d.avg+' – الأعلى: '+d.mx+' – الأدنى: '+d.mn+'</p>':'<p>لا توجد قراءات مسجلة.</p>';
  h+='<h3>الأدوية</h3>'+(d.ms.length?'<table><tr><th>الدواء</th><th>الوقت</th><th>ملاحظة</th></tr>'+d.ms.map(function(m){return '<tr><td>'+esc(m.n)+'</td><td>'+fmt(m.t)+'</td><td>'+esc(m.o||"")+'</td></tr>'}).join("")+'</table>':'<p>لا توجد أدوية مسجلة.</p>');
  h+='<p style="font-size:12px">التقرير من تطبيق إرشادي ولا يغني عن الفحص الطبي.</p>';
