@@ -260,6 +260,7 @@ details p{margin:0;padding:0 16px 14px}
     <label for="lkCode">رمز الربط</label>
     <input id="lkCode" type="text" inputmode="numeric" autocomplete="off" maxlength="6" dir="ltr" placeholder="123456">
     <button class="go" id="lkBtn">ربط</button>
+    <button class="go sec" id="lkSyncMeds" hidden style="margin-top:10px">🔄 إرسال الأدوية للطبيب الآن</button>
     <button class="go sec" id="lkUnlink" hidden style="margin-top:10px">🔓 فك الربط</button>
     <div id="lkMsg" class="res" hidden></div>
     <p id="lkStatus" class="note"></p>
@@ -617,7 +618,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v25";
+  var APP_VER="v26";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     $("dList").innerHTML=rows.map(function(r){
@@ -669,6 +670,7 @@ render();
     var L=getLink();
     $("lkStatus").textContent=L?"الحالة: مرتبط بطبيبك ✅ وتُرسل قراءاتك وأدويتك تلقائياً.":"الحالة: غير مرتبط بعد.";
     $("lkUnlink").hidden=!L;
+    $("lkSyncMeds").hidden=!L;
   }
   window.rafiqPush=function(r){
     var L=getLink();
@@ -711,13 +713,27 @@ render();
   };
   showLinkStatus();
 
-  window.rafiqSyncMeds=function(list){
+  function readMeds(){try{return JSON.parse(localStorage.getItem("rafiq_meds"))||[]}catch(e){return[]}}
+  // إرسال الأدوية إلى ملف المريض عند الطبيب
+  window.rafiqSyncMeds=function(list,manual){
     var L=getLink();
-    if(!L||!A.currentUser||A.currentUser.uid!==L.uid) return;
+    if(!L){if(manual)msg("lkMsg","bad","أنت غير مرتبط بطبيب بعد.");return Promise.resolve()}
+    if(!A.currentUser||A.currentUser.uid!==L.uid){if(manual)msg("lkMsg","warn","جارٍ تجهيز الاتصال، حاول بعد لحظة.");return Promise.resolve()}
     var arr=(Array.isArray(list)?list:[]).map(function(m){return {n:String(m.n||""),t:String(m.t||""),o:String(m.o||"")}});
-    D.collection("patients").doc(L.pid).update({meds:arr})
-      .catch(function(e){if(e&&e.code==="permission-denied"){setLink(null);showLinkStatus()}console.error(e)});
+    if(manual)msg("lkMsg","warn","جارٍ إرسال الأدوية…");
+    return withTimeout(D.collection("patients").doc(L.pid).update({meds:arr}),12000)
+      .then(function(){if(manual)msg("lkMsg","ok","تم إرسال "+arr.length+" دواء إلى طبيبك.")})
+      .catch(function(e){
+        if(e&&e.code==="permission-denied"){setLink(null);showLinkStatus()}
+        console.error(e);
+        if(manual)msg("lkMsg","bad","تعذّر إرسال الأدوية: "+((e&&(e.code||e.message))||"unknown"));
+      });
   };
+  $("lkSyncMeds").onclick=function(){window.rafiqSyncMeds(readMeds(),true)};
+  // عند كل تحميل للصفحة بعد جاهزية الحساب، أرسل الأدوية الحالية
+  A.onAuthStateChanged(function(u){
+    if(u&&u.isAnonymous&&getLink()) window.rafiqSyncMeds(readMeds(),false);
+  });
   $("lkUnlink").onclick=function(){
     var L=getLink();
     if(!L) return;
