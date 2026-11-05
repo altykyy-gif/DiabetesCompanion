@@ -604,38 +604,34 @@ render();
       p.then(function(v){clearTimeout(t);res(v)},function(e){clearTimeout(t);rej(e)});
     });
   }
-  var unsub=null;
-  // استماع مباشر للمرضى: يتحدّث تلقائياً عند الإضافة ويُظهر الأخطاء
+  var unsub=null; // لم يعد مستخدماً (الاستماع المباشر متوقف على هذه الشبكة)
+  // قراءة مباشرة من الخادم (وهي تعمل حسب فحص الاتصال)
   function load(uid){
-    if(unsub){unsub();unsub=null}
     $("dList").innerHTML="<p>جارٍ التحميل…</p>";
-    var slow=setTimeout(function(){
-      $("dList").innerHTML='<div class="res warn">التحميل يأخذ وقتاً أطول من المعتاد. تأكد من الاتصال بالإنترنت.</div>';
-    },10000);
-    unsub=D.collection("patients").where("doctorId","==",uid).onSnapshot(function(snap){
-      clearTimeout(slow);
-      var rows=[];
-      snap.forEach(function(d){rows.push({id:d.id,name:d.data().name||""})});
-      if(!rows.length){$("dList").innerHTML="<p>لا يوجد مرضى بعد. أضف أول مريض من الأعلى.</p>";return}
-      Promise.all(rows.map(function(r){
-        return withTimeout(
-          D.collection("patients").doc(r.id).collection("readings").orderBy("ts","desc").limit(5).get(),
-          8000
-        ).then(function(rs){
-          var vs=[];rs.forEach(function(x){vs.push(Number(x.data().v))});
-          r.lv=level(vs);return r;
-        }).catch(function(){r.lv=level([]);return r});
-      })).then(function(all){
-        all.sort(function(a,b){return (a.lv.k-b.lv.k)||a.name.localeCompare(b.name,"ar")});
-        $("dList").innerHTML=all.map(function(r){
-          return '<div class="card"><b>'+esc(r.name)+'</b><div class="res '+r.lv.c+'" style="margin:8px 0 0">'+r.lv.t+'</div></div>';
-        }).join("");
+    withTimeout(D.collection("patients").where("doctorId","==",uid).get({source:"server"}),12000)
+      .then(function(snap){
+        var rows=[];
+        snap.forEach(function(d){rows.push({id:d.id,name:d.data().name||""})});
+        if(!rows.length){$("dList").innerHTML="<p>لا يوجد مرضى بعد. أضف أول مريض من الأعلى.</p>";return}
+        return Promise.all(rows.map(function(r){
+          return withTimeout(
+            D.collection("patients").doc(r.id).collection("readings").orderBy("ts","desc").limit(5).get({source:"server"}),
+            8000
+          ).then(function(rs){
+            var vs=[];rs.forEach(function(x){vs.push(Number(x.data().v))});
+            r.lv=level(vs);return r;
+          }).catch(function(){r.lv=level([]);return r});
+        })).then(function(all){
+          all.sort(function(a,b){return (a.lv.k-b.lv.k)||a.name.localeCompare(b.name,"ar")});
+          $("dList").innerHTML=all.map(function(r){
+            return '<div class="card"><b>'+esc(r.name)+'</b><div class="res '+r.lv.c+'" style="margin:8px 0 0">'+r.lv.t+'</div></div>';
+          }).join("");
+        });
+      })
+      .catch(function(e){
+        console.error(e);
+        $("dList").innerHTML='<div class="res bad">تعذّر تحميل المرضى. اضغط «تحديث القائمة» أو تأكد من الاتصال.<br><small dir="ltr">'+esc((e&&(e.code||e.message))||"unknown")+'</small></div>';
       });
-    },function(e){
-      clearTimeout(slow);
-      console.error(e);
-      $("dList").innerHTML='<div class="res bad">تعذّر تحميل المرضى. تأكد من الاتصال بالإنترنت.<br><small dir="ltr">'+esc((e&&(e.code||e.message))||"unknown")+'</small></div>';
-    });
   }
   $("dIn").onclick=function(){
     var em=$("dEmail").value.trim(),pw=$("dPass").value;
@@ -677,7 +673,7 @@ render();
     if(!n){msg("dAddMsg","bad","اكتب اسم المريض.");return}
     $("dAdd").disabled=true;
     D.collection("patients").add({name:n,doctorId:u.uid,createdAt:Date.now()})
-      .then(function(){$("dNew").value="";msg("dAddMsg","ok","تمت إضافة المريض.")})
+      .then(function(){$("dNew").value="";msg("dAddMsg","ok","تمت إضافة المريض.");load(u.uid)})
       .catch(function(){msg("dAddMsg","bad","تعذّر الحفظ. تحقق من الاتصال بالإنترنت.")})
       .then(function(){$("dAdd").disabled=false});
   };
