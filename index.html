@@ -254,6 +254,15 @@ details p{margin:0;padding:0 16px 14px}
     <button class="go sec" id="rshare">📤 أرسله (واتساب وغيره)</button>
     <p class="note">في صفحة الطباعة اختر «حفظ كـ PDF» إن أردت ملفاً.</p>
   </div>
+  <h2>🔗 ربط مع طبيبي</h2>
+  <div class="card">
+    <p>إن أعطاك طبيبك رمزاً من 6 أرقام فاكتبه هنا ليصل إليه سجلّك.</p>
+    <label for="lkCode">رمز الربط</label>
+    <input id="lkCode" type="text" inputmode="numeric" autocomplete="off" maxlength="6" dir="ltr" placeholder="123456">
+    <button class="go" id="lkBtn">ربط</button>
+    <div id="lkMsg" class="res" hidden></div>
+    <p id="lkStatus" class="note"></p>
+  </div>
   <h2>👨‍⚕️ لوحة الطبيب</h2>
   <div class="card">
     <p>لطبيبك فقط: تسجيل الدخول لمتابعة مرضاه.</p>
@@ -295,6 +304,7 @@ details p{margin:0;padding:0 16px 14px}
     </div>
     <h3>المرضى (الأخطر أولاً)</h3>
     <button class="go sec" id="dRefresh">🔄 تحديث القائمة</button>
+    <button class="go sec" id="dDelAll" style="margin-top:10px">🗑️ حذف كل المرضى</button>
     <div id="dList"></div>
     <button class="go sec" id="dTest">🛠️ فحص الاتصال بالخادم</button>
     <div id="dTestRes" class="res" hidden></div>
@@ -382,7 +392,7 @@ document.getElementById("save").onclick=function(){
  if(!v||v<20||v>700){r.className="res warn";r.textContent="اكتب رقماً صحيحاً (مثلاً 110).";return}
  var j=judge(v,w);r.className="res "+j[0];r.textContent=j[1];
  var d=new Date().toLocaleString("ar-LY",{day:"numeric",month:"numeric",hour:"numeric",minute:"2-digit"});
- var a=load();a.push({v:v,w:w,c:j[0],t:j[2],d:d,ts:Date.now()});store(a);render();document.getElementById("val").value=""};
+ var a=load();a.push({v:v,w:w,c:j[0],t:j[2],d:d,ts:Date.now()});store(a);if(window.rafiqPush)window.rafiqPush(a[a.length-1]);render();document.getElementById("val").value=""};
 render();
 var fs=19;try{fs=+localStorage.getItem(FK)||19}catch(e){}
 function setfs(n){fs=Math.max(16,Math.min(28,n));document.documentElement.style.setProperty("--fs",fs+"px");try{localStorage.setItem(FK,fs)}catch(e){}}
@@ -606,12 +616,14 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v20";
+  var APP_VER="v23";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     $("dList").innerHTML=rows.map(function(r){
       var lv=r.lv||{t:"جارٍ حساب الحالة…",c:""};
-      return '<div class="card"><b>'+esc(r.name)+'</b><div class="res '+lv.c+'" style="margin:8px 0 0">'+lv.t+'</div></div>';
+      var st=r.linked?"🔗 مرتبط بالتطبيق":"غير مرتبط بعد";
+      var lb=r.linked?"":'<button class="go sec" data-link="'+esc(r.id)+'" data-name="'+esc(r.name)+'" data-old="'+esc(r.code||"")+'" style="margin-top:10px">🔑 إنشاء رمز ربط</button>';
+      return '<div class="card"><b>'+esc(r.name)+'</b><div class="res '+lv.c+'" style="margin:8px 0 0">'+lv.t+'</div><p class="note" style="margin:8px 0 0">'+st+'</p>'+lb+'<button class="go sec" data-del="'+esc(r.id)+'" data-name="'+esc(r.name)+'" style="margin-top:10px">🗑️ حذف هذا المريض</button></div>';
     }).join("")+'<p class="note" dir="ltr">'+APP_VER+'</p>';
   }
   function load(uid){
@@ -622,7 +634,7 @@ render();
       .then(function(snap){
         stage("المرحلة 2 من 3: تم جلب "+snap.size+" مريض");
         var rows=[];
-        snap.forEach(function(d){rows.push({id:d.id,name:String(d.data().name||"")})});
+        snap.forEach(function(d){rows.push({id:d.id,name:String(d.data().name||""),linked:!!d.data().patientUid,code:d.data().linkCode||""})});
         if(!rows.length){box.innerHTML="<p>لا يوجد مرضى بعد. أضف أول مريض من الأعلى. <small dir=\"ltr\">"+APP_VER+"</small></p>";return}
         rows.sort(function(a,b){return a.name<b.name?-1:a.name>b.name?1:0});
         stage("المرحلة 3 من 3: رسم "+rows.length+" مريض");
@@ -630,7 +642,7 @@ render();
         catch(err){ box.textContent="خطأ في الرسم: "+(err&&err.message?err.message:String(err)); return; }
         return Promise.all(rows.map(function(r){
           return withTimeout(
-            D.collection("patients").doc(r.id).collection("readings").limit(5).get({source:"server"}),
+            D.collection("patients").doc(r.id).collection("readings").orderBy("ts","desc").limit(5).get({source:"server"}),
             8000
           ).then(function(rs){
             var vs=[];rs.forEach(function(x){vs.push(Number(x.data().v))});
@@ -646,6 +658,52 @@ render();
         box.textContent="تعذّر تحميل المرضى: "+((e&&(e.code||e.message))||"unknown");
       });
   }
+  // ===== جهة المريض: الربط وإرسال القراءات =====
+  function getLink(){try{return JSON.parse(localStorage.getItem("rafiq_link"))}catch(e){return null}}
+  function setLink(v){try{localStorage.setItem("rafiq_link",JSON.stringify(v))}catch(e){}}
+  function showLinkStatus(){
+    var L=getLink();
+    $("lkStatus").textContent=L?"الحالة: مرتبط بطبيبك ✅ وتُرسل قراءاتك تلقائياً.":"الحالة: غير مرتبط بعد.";
+  }
+  window.rafiqPush=function(r){
+    var L=getLink();
+    if(!L||!A.currentUser||A.currentUser.uid!==L.uid) return;
+    D.collection("patients").doc(L.pid).collection("readings")
+      .add({v:r.v,w:r.w,c:r.c,t:r.t,d:r.d,ts:r.ts})
+      .catch(function(e){console.error(e)});
+  };
+  $("lkBtn").onclick=function(){
+    var code=$("lkCode").value.trim();
+    if(!/^\d{6}$/.test(code)){msg("lkMsg","bad","اكتب الرمز المكون من 6 أرقام.");return}
+    msg("lkMsg","warn","جارٍ الربط… انتظر.");
+    $("lkBtn").disabled=true;
+    var who=A.currentUser?Promise.resolve(A.currentUser):A.signInAnonymously().then(function(c){return c.user});
+    who.then(function(u){
+      return withTimeout(D.collection("links").doc(code).get({source:"server"}),12000).then(function(ls){
+        if(!ls.exists) throw {code:"invalid-code"};
+        var L=ls.data();
+        if(L.used) throw {code:"used"};
+        if(!(L.exp>Date.now())) throw {code:"expired"};
+        var b=D.batch();
+        b.update(D.collection("patients").doc(L.pid),{patientUid:u.uid});
+        b.update(D.collection("links").doc(code),{used:true});
+        return b.commit().then(function(){
+          setLink({pid:L.pid,uid:u.uid});
+          var old=[];try{old=JSON.parse(localStorage.getItem("rafiq_log"))||[]}catch(e){}
+          old.filter(function(r){return r&&r.ts}).slice(-15).forEach(function(r){window.rafiqPush(r)});
+        });
+      });
+    }).then(function(){
+      msg("lkMsg","ok","تم الربط بنجاح. ستُرسل قراءاتك إلى طبيبك.");
+      $("lkCode").value="";
+      showLinkStatus();
+    }).catch(function(e){
+      var m={"invalid-code":"الرمز غير صحيح.","used":"هذا الرمز استُخدم من قبل.","expired":"انتهت صلاحية الرمز. اطلب رمزاً جديداً من طبيبك.","permission-denied":"الرمز غير صحيح أو منتهي.","auth/admin-restricted-operation":"الدخول المجهول غير مفعّل في Firebase."};
+      msg("lkMsg","bad",m[e&&e.code]||("تعذّر الربط: "+((e&&(e.code||e.message))||"unknown")));
+    }).then(function(){$("lkBtn").disabled=false});
+  };
+  showLinkStatus();
+
   $("dIn").onclick=function(){
     var em=$("dEmail").value.trim(),pw=$("dPass").value;
     msg("dErr","","");
@@ -670,6 +728,64 @@ render();
   };
   $("dOut").onclick=function(){A.signOut()};
   $("dRefresh").onclick=function(){if(A.currentUser)load(A.currentUser.uid)};
+  // حذف مريض: زر الحذف داخل كل بطاقة مع تأكيد قبل الحذف
+  // حذف جميع مرضى الطبيب بتأكيد مزدوج
+  $("dDelAll").onclick=function(){
+    var u=A.currentUser;
+    if(!u) return;
+    if(!window.confirm("حذف جميع المرضى في هذه القائمة؟")) return;
+    if(!window.confirm("تأكيد نهائي: لا يمكن التراجع عن حذف كل المرضى. هل تريد المتابعة؟")) return;
+    var btn=$("dDelAll");
+    btn.disabled=true;
+    D.collection("patients").where("doctorId","==",u.uid).get({source:"server"})
+      .then(function(snap){
+        var docs=snap.docs,chain=Promise.resolve();
+        for(var i=0;i<docs.length;i+=400){
+          (function(part){
+            chain=chain.then(function(){
+              var b=D.batch();
+              part.forEach(function(d){b.delete(d.ref)});
+              return b.commit();
+            });
+          })(docs.slice(i,i+400));
+        }
+        return chain.then(function(){return docs.length});
+      })
+      .then(function(n){window.alert("تم حذف "+n+" مريض.");load(u.uid)})
+      .catch(function(err){window.alert("تعذّر الحذف: "+((err&&(err.code||err.message))||"unknown"))})
+      .then(function(){btn.disabled=false});
+  };
+  function makeLink(b){
+    var u=A.currentUser;
+    if(!u) return;
+    var pid=b.getAttribute("data-link"),nm=b.getAttribute("data-name")||"";
+    var code=String(Math.floor(100000+Math.random()*900000));
+    var batch=D.batch();
+    batch.set(D.collection("links").doc(code),{pid:pid,doctorId:u.uid,exp:Date.now()+3*24*3600*1000,used:false});
+    batch.update(D.collection("patients").doc(pid),{linkCode:code});
+    b.disabled=true;
+    batch.commit()
+      .then(function(){
+        window.alert("رمز ربط "+nm+": "+code+"\nصالح لمدة 3 أيام ولمرة واحدة. أعطه للمريض.");
+        load(u.uid);
+      })
+      .catch(function(err){
+        b.disabled=false;
+        window.alert("تعذّر إنشاء الرمز: "+((err&&(err.code||err.message))||"unknown"));
+      });
+  }
+  $("dList").onclick=function(e){
+    var lk=e.target.closest?e.target.closest("[data-link]"):null;
+    if(lk){makeLink(lk);return}
+    var b=e.target.closest?e.target.closest("[data-del]"):null;
+    if(!b) return;
+    var id=b.getAttribute("data-del"),nm=b.getAttribute("data-name")||"";
+    if(!window.confirm("حذف المريض "+nm+"؟ لا يمكن التراجع عن الحذف.")) return;
+    b.disabled=true;
+    D.collection("patients").doc(id).delete()
+      .then(function(){if(A.currentUser)load(A.currentUser.uid)})
+      .catch(function(err){b.disabled=false;window.alert("تعذّر الحذف: "+((err&&(err.code||err.message))||"unknown"))});
+  };
   // فحص مباشر: يقرأ من الخادم مباشرة ويعرض النتيجة
   $("dTest").onclick=function(){
     var u=A.currentUser;
@@ -695,9 +811,10 @@ render();
     });
   };
   A.onAuthStateChanged(function(u){
-    $("dLogin").hidden=!!u;
-    $("dPanel").hidden=!u;
-    if(u){$("dWho").textContent=u.email||"";load(u.uid)}
+    var doc=!!(u&&!u.isAnonymous);
+    $("dLogin").hidden=doc;
+    $("dPanel").hidden=!doc;
+    if(doc){$("dWho").textContent=u.email||"";load(u.uid)}
     else{if(unsub){unsub();unsub=null}$("dList").innerHTML="";$("dAddMsg").hidden=true}
   });
 })();
