@@ -604,7 +604,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v16";
+  var APP_VER="v17";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     $("dList").innerHTML=rows.map(function(r){
@@ -680,21 +680,25 @@ render();
   $("dTest").onclick=function(){
     var u=A.currentUser;
     if(!u) return;
-    msg("dTestRes","warn","جارٍ الفحص… انتظر.");
-    var t0=Date.now();
-    withTimeout(D.collection("patients").where("doctorId","==",u.uid).limit(1).get({source:"server"}),12000)
-      .then(function(s){msg("dTestRes","ok","الاتصال يعمل. وصلت "+s.size+" وثيقة خلال "+(Date.now()-t0)+" ملي ثانية.")})
-      .catch(function(e){msg("dTestRes","bad","فشل الفحص: "+((e&&(e.code||e.message))||"unknown")+" | "+(navigator.onLine?"الجهاز متصل بالشبكة":"الجهاز غير متصل"))});
-  };
-  $("dAdd").onclick=function(){
-    var n=$("dNew").value.trim(),u=A.currentUser;
-    if(!u) return;
-    if(!n){msg("dAddMsg","bad","اكتب اسم المريض.");return}
-    $("dAdd").disabled=true;
-    D.collection("patients").add({name:n,doctorId:u.uid,createdAt:Date.now()})
-      .then(function(){$("dNew").value="";msg("dAddMsg","ok","تمت إضافة المريض.");load(u.uid)})
-      .catch(function(){msg("dAddMsg","bad","تعذّر الحفظ. تحقق من الاتصال بالإنترنت.")})
-      .then(function(){$("dAdd").disabled=false});
+    var out=[];
+    function show(c){msg("dTestRes",c,out.join("\n"))}
+    function step(label,p){
+      var t0=Date.now();
+      out.push(label+": جارٍ...");show("warn");
+      return withTimeout(p,12000).then(function(s){
+        out[out.length-1]=label+": نجح ("+s.size+" وثيقة، "+(Date.now()-t0)+" ms)";
+      }).catch(function(e){
+        out[out.length-1]=label+": فشل ("+((e&&(e.code||e.message))||"unknown")+")";
+      }).then(function(){show("ok")});
+    }
+    out=[];
+    step("1) استعلام مع limit(1)", D.collection("patients").where("doctorId","==",u.uid).limit(1).get({source:"server"}))
+    .then(function(){
+      return step("2) استعلام بدون limit", D.collection("patients").where("doctorId","==",u.uid).get({source:"server"}));
+    })
+    .then(function(){
+      return step("3) استعلام بدون where (يُتوقع رفضه)", D.collection("patients").limit(1).get({source:"server"}));
+    });
   };
   A.onAuthStateChanged(function(u){
     $("dLogin").hidden=!!u;
