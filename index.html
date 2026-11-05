@@ -349,7 +349,6 @@ details p{margin:0;padding:0 16px 14px}
   });
   const auth = firebase.auth();
   const db = firebase.firestore();
-  try { db.settings({ experimentalForceLongPolling: true, useFetchStreams: false }); } catch (e) { console.error(e); }
 </script>
 <script>
 (function(){
@@ -605,7 +604,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v15";
+  var APP_VER="v16";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     $("dList").innerHTML=rows.map(function(r){
