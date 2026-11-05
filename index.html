@@ -610,8 +610,9 @@ render();
           return '<div class="card"><b>'+esc(r.name)+'</b><div class="res '+r.lv.c+'" style="margin:8px 0 0">'+r.lv.t+'</div></div>';
         }).join(""):"<p>لا يوجد مرضى بعد. أضف أول مريض من الأعلى.</p>";
       });
-    }).catch(function(){
-      $("dList").innerHTML='<div class="res bad">تعذّر تحميل المرضى. تأكد من الاتصال بالإنترنت.</div>';
+    }).catch(function(e){
+      console.error(e);
+      $("dList").innerHTML='<div class="res bad">تعذّر تحميل المرضى. تأكد من الاتصال بالإنترنت.<br><small dir="ltr">'+esc((e&&(e.code||e.message))||"unknown")+'</small></div>';
     });
   }
   $("dIn").onclick=function(){
@@ -620,12 +621,17 @@ render();
     if(!em||!pw){msg("dErr","bad","اكتب البريد وكلمة المرور.");return}
     msg("dErr","warn","جارٍ تسجيل الدخول… انتظر لحظة.");
     $("dIn").disabled=true;
+    var timer=setTimeout(function(){
+      msg("dErr","bad","لم يصل رد من الخادم خلال 15 ثانية. تأكد من الإنترنت وحاول مرة أخرى.");
+      $("dIn").disabled=false;
+    },15000);
     try{
       A.signInWithEmailAndPassword(em,pw)
-        .then(function(){$("dPass").value="";msg("dErr","","")})
-        .catch(function(e){console.error(e);msg("dErr","bad",errText(e))})
+        .then(function(){clearTimeout(timer);$("dPass").value="";msg("dErr","","")})
+        .catch(function(e){clearTimeout(timer);console.error(e);msg("dErr","bad",errText(e))})
         .then(function(){$("dIn").disabled=false});
     }catch(e){
+      clearTimeout(timer);
       console.error(e);
       $("dIn").disabled=false;
       msg("dErr","bad","تعذّر الدخول: "+(e.message||e));
