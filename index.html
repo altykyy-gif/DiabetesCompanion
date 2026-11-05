@@ -294,7 +294,10 @@ details p{margin:0;padding:0 16px 14px}
       <div id="dAddMsg" class="res" hidden></div>
     </div>
     <h3>المرضى (الأخطر أولاً)</h3>
+    <button class="go sec" id="dRefresh">🔄 تحديث القائمة</button>
     <div id="dList"></div>
+    <button class="go sec" id="dTest">🛠️ فحص الاتصال بالخادم</button>
+    <div id="dTestRes" class="res" hidden></div>
   </div>
   <button class="go sec" data-go="more">رجوع</button>
 </section>
@@ -657,6 +660,17 @@ render();
     }
   };
   $("dOut").onclick=function(){A.signOut()};
+  $("dRefresh").onclick=function(){if(A.currentUser)load(A.currentUser.uid)};
+  // فحص مباشر: يقرأ من الخادم مباشرة ويعرض النتيجة
+  $("dTest").onclick=function(){
+    var u=A.currentUser;
+    if(!u) return;
+    msg("dTestRes","warn","جارٍ الفحص… انتظر.");
+    var t0=Date.now();
+    withTimeout(D.collection("patients").where("doctorId","==",u.uid).limit(1).get({source:"server"}),12000)
+      .then(function(s){msg("dTestRes","ok","الاتصال يعمل. وصلت "+s.size+" وثيقة خلال "+(Date.now()-t0)+" ملي ثانية.")})
+      .catch(function(e){msg("dTestRes","bad","فشل الفحص: "+((e&&(e.code||e.message))||"unknown")+" | "+(navigator.onLine?"الجهاز متصل بالشبكة":"الجهاز غير متصل"))});
+  };
   $("dAdd").onclick=function(){
     var n=$("dNew").value.trim(),u=A.currentUser;
     if(!u) return;
