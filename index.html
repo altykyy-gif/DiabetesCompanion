@@ -69,6 +69,9 @@ nav a b{display:block;font-size:1.5rem;line-height:1.3}
 nav a.on{color:var(--main-ink);background:var(--main)}
 
 .risk .res{margin:0 0 12px}
+.opts{display:flex;flex-wrap:wrap;gap:8px}.opts button{flex:1 1 40%;min-height:56px;border:2px solid var(--main);border-radius:12px;background:var(--card);color:var(--ink);font:800 1.05rem Tahoma,system-ui;cursor:pointer}
+.opts button[aria-pressed="true"]{background:var(--main);color:var(--main-ink)}
+details p{margin:0;padding:0 16px 14px}
 .chartwrap svg{width:100%;height:auto;display:block}
 .stats{display:flex;justify-content:space-between;gap:6px;text-align:center;margin-top:8px;font-weight:800}
 .stats span{flex:1;background:var(--bg);border-radius:12px;padding:6px 2px}.stats small{display:block;font-weight:400;color:var(--sub);font-size:.75rem}
@@ -97,6 +100,8 @@ nav a.on{color:var(--main-ink);background:var(--main)}
     <button class="big" data-go="meds"><span class="i">💊</span><span>أدويتي ومواعيدها<small>تذكير بوقت كل دواء</small></span></button>
     <button class="big" data-go="tips"><span class="i">💡</span><span>نصائح للوقاية<small>الأكل، الحركة، الدواء، القدمان</small></span></button>
     <button class="big" data-go="sos"><span class="i">🚑</span><span>طوارئ: ماذا أفعل؟<small>إذا نزل السكر أو ارتفع كثيراً</small></span></button>
+    <button class="big" data-go="daily"><span class="i">🍽️</span><span>وجباتي ونشاطي<small>سجّل أكلك ومشيك بضغطة</small></span></button>
+    <button class="big" data-go="ask"><span class="i">❓</span><span>أسئلة عن الأكل<small>التمر، الصيام، الخبز...</small></span></button>
     <button class="big" data-go="more"><span class="i">📄</span><span>تقرير الطبيب والنسخ الاحتياطي<small>اطبع قراءاتك أو أرسلها لطبيبك</small></span></button>
     <button class="big" data-go="about"><span class="i">ℹ️</span><span>عن المشروع<small>الطالبات والمشرف</small></span></button>
   </div>
@@ -116,6 +121,7 @@ nav a.on{color:var(--main-ink);background:var(--main)}
   </div>
   <h2>📈 رسمة قراءاتي</h2>
   <div class="card chartwrap" id="chart"></div>
+  <div class="card" id="ins" style="display:none"></div>
   <h2>قراءاتي السابقة</h2>
   <div class="card" id="hist"></div>
   <p class="note">القراءات تُحفظ في هاتفك فقط. أرِها لطبيبك في كل زيارة.</p>
@@ -198,6 +204,43 @@ nav a.on{color:var(--main-ink);background:var(--main)}
     <a class="call" href="tel:193">📞 اتصل بالإسعاف</a>
     <p class="note">رقم الإسعاف يختلف حسب المنطقة. تأكد من الرقم المعتمد في مدينتك واكتبه هنا.</p>
   </div>
+</section>
+
+<section id="daily">
+  <h2>🍽️ وجباتي</h2>
+  <div class="card">
+    <label>أي وجبة؟</label>
+    <div class="opts" id="mt2"><button data-v="الفطور">الفطور</button><button data-v="الغداء">الغداء</button><button data-v="العشاء">العشاء</button><button data-v="وجبة خفيفة">وجبة خفيفة</button></div>
+    <label>كيف كانت؟</label>
+    <div class="opts" id="mq2"><button data-v="خفيفة">🥗 خفيفة</button><button data-v="عادية">🍲 عادية</button><button data-v="ثقيلة (نشويات أو حلويات)">🍰 ثقيلة</button></div>
+    <button class="go" id="msave">احفظ الوجبة</button>
+  </div>
+  <h2>🚶 نشاطي</h2>
+  <div class="card">
+    <p>اضغط على ما فعلته اليوم:</p>
+    <div class="opts" id="act"><button data-n="مشي" data-m="10">مشي 10 دقائق</button><button data-n="مشي" data-m="20">مشي 20 دقيقة</button><button data-n="مشي" data-m="30">مشي 30 دقيقة</button><button data-n="تمارين خفيفة" data-m="15">تمارين خفيفة 15 دقيقة</button></div>
+    <div id="wsum" role="status" aria-live="polite"></div>
+  </div>
+  <h2>سجل اليوم</h2>
+  <div class="card" id="dlist"></div>
+  <p class="note">الهدف الإرشادي: 30 دقيقة حركة في اليوم. إذا شعرت بدوار أو تعب توقف.</p>
+</section>
+
+<section id="ask">
+  <h2>❓ أسئلة عن الأكل</h2>
+  <p class="note">اضغط على السؤال لتقرأ الجواب. الإجابات إرشادية وتعمل دون إنترنت.</p>
+  <details><summary>🌴 هل آكل التمر؟</summary><p>نعم بكمية صغيرة: حبة إلى حبتين مع وجبة، وليس وحده على معدة فارغة. التمر سكر طبيعي يرفع السكر. استثناء: حبات التمر الثلاث علاج لهبوط السكر. قِس سكرك بعد ساعتين لتعرف كيف يتأثر جسمك.</p></details>
+  <details><summary>🌙 هل أصوم رمضان؟</summary><p>اسأل طبيبك قبل رمضان بأسابيع؛ فقد يغيّر مواعيد الدواء أو جرعته. لا تغيّر الدواء بنفسك. افطر فوراً إذا نزل السكر عن 70 أو ارتفع فوق 300 أو شعرت بدوخة شديدة. في السحور كُل بروتيناً وخضاراً وقليلاً من النشويات، واشرب الماء بين الإفطار والسحور.</p></details>
+  <details><summary>🍞 كم آكل من الخبز؟</summary><p>كمية صغيرة: ربع رغيف إلى نصفه في الوجبة، ويفضّل خبز القمح الكامل أو الشعير. اجعل الخضار والسلطة معه ولا تأكل الخبز وحده.</p></details>
+  <details><summary>🍚 الأرز والمعكرونة والكسكسي</summary><p>لا حاجة لتركها كلياً، لكن اجعلها ربع الطبق فقط، ونصف الطبق خضار، وربعه بروتين (لحم، سمك، دجاج، بيض). برّد الأرز أو المعكرونة بعد الطبخ وأعد تسخينها؛ فهذا يخفف أثرها قليلاً.</p></details>
+  <details><summary>🍎 هل آكل الفاكهة؟</summary><p>نعم، حبة صغيرة واحدة في المرة (تفاحة، برتقالة، كمثرى) ويفضّل بعد وجبة. تجنب الإكثار من العنب والبطيخ والموز الكبير، وكل الفاكهة كاملة بدل العصير.</p></details>
+  <details><summary>🧃 العصير والمشروبات الغازية</summary><p>لا تشربها يومياً؛ فهي ترفع السكر بسرعة. اشرب الماء أو الشاي والقهوة دون سكر. العصير يفيد فقط عند نزول السكر تحت 70.</p></details>
+  <details><summary>🍵 الشاي والقهوة</summary><p>اشربهما دون سكر أو بملعقة صغيرة جداً. يمكن استخدام مُحلٍّ بديل، واسأل طبيبك إن كان مناسباً لك.</p></details>
+  <details><summary>🍰 الحلويات</summary><p>الأفضل تركها. إن أردت قطعة صغيرة فكُلها بعد وجبة كاملة وليس وحدها، وامشِ 10 دقائق بعدها، وقِس سكرك بعد ساعتين.</p></details>
+  <details><summary>🫘 العدس والفول والحمص</summary><p>مفيدة بكمية معتدلة (نصف كوب تقريباً) لأنها تحتوي ألياف وبروتين وترفع السكر ببطء، لكنها تحتوي نشويات أيضاً فلا تضف إليها خبزاً كثيراً.</p></details>
+  <details><summary>🍟 الزيوت والمقليات</summary><p>قلّلها واختر الشوي أو السلق أو الفرن. استعمل زيت الزيتون بكمية قليلة. الدهون الكثيرة تضر القلب، وهو أكثر ما يتأثر بالسكر.</p></details>
+  <details><summary>🥛 الحليب والتمور باللبن</summary><p>كوب حليب أو لبن قليل الدسم مناسب في اليوم. تجنب الحليب المحلّى والمشروبات المحلّاة.</p></details>
+  <div class="card note">⚠️ هذه نصائح عامة ولا تناسب كل حالة. اسأل طبيبك أو أخصائي التغذية عن نظامك الخاص.</div>
 </section>
 
 <section id="more">
@@ -284,7 +327,7 @@ document.getElementById("save").onclick=function(){
  if(!v||v<20||v>700){r.className="res warn";r.textContent="اكتب رقماً صحيحاً (مثلاً 110).";return}
  var j=judge(v,w);r.className="res "+j[0];r.textContent=j[1];
  var d=new Date().toLocaleString("ar-LY",{day:"numeric",month:"numeric",hour:"numeric",minute:"2-digit"});
- var a=load();a.push({v:v,w:w,c:j[0],t:j[2],d:d});store(a);render();document.getElementById("val").value=""};
+ var a=load();a.push({v:v,w:w,c:j[0],t:j[2],d:d,ts:Date.now()});store(a);render();document.getElementById("val").value=""};
 render();
 var fs=19;try{fs=+localStorage.getItem(FK)||19}catch(e){}
 function setfs(n){fs=Math.max(16,Math.min(28,n));document.documentElement.style.setProperty("--fs",fs+"px");try{localStorage.setItem(FK,fs)}catch(e){}}
@@ -345,7 +388,7 @@ document.addEventListener("visibilitychange",function(){if(!document.hidden)chec
 
 <script>
 (function(){
-var LK="rafiq_log",MK="rafiq_meds",KEYS=["rafiq_log","rafiq_meds","rafiq_taken","rafiq_rem","rafiq_fs"];
+var LK="rafiq_log",MK="rafiq_meds",KEYS=["rafiq_log","rafiq_meds","rafiq_taken","rafiq_rem","rafiq_fs","rafiq_daily"];
 function g(k,d){try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 function fmt(t){var a=String(t).split(":"),h=+a[0];return (h%12||12)+":"+a[1]+(h>=12?" م":" ص")}
@@ -371,16 +414,38 @@ function chart(){
  box.innerHTML=svg+'<div class="stats"><span>'+avg+'<small>المتوسط</small></span><span>'+Math.max.apply(null,vs)+'<small>الأعلى</small></span><span>'+Math.min.apply(null,vs)+'<small>الأدنى</small></span></div><p class="note">المنطقة الخضراء = المعدل الجيد تقريباً (70–180). آخر '+a.length+' قراءات.</p>';
 }
 /* 2) تنبيه المخاطر */
+function trend(a){
+ if(a.length<4)return null;var w=a[a.length-1].w,b=a.filter(function(r){return r.w===w}).slice(-6);
+ if(b.length<4)return null;var n=b.length,sx=0,sy=0,sxy=0,sxx=0;
+ b.forEach(function(r,i){sx+=i;sy+=r.v;sxy+=i*r.v;sxx+=i*i});
+ var sl=(n*sxy-sx*sy)/(n*sxx-sx*sx),pr=Math.round((sy-sl*sx)/n+sl*n);
+ if(sl>=8&&pr>180)return["warn","📈 قراءاتك الأخيرة تميل للارتفاع، وقد تصل القادمة إلى نحو "+pr+" (تقدير تجريبي). راجع أكلك ودوائك."];
+ if(sl<=-8&&pr<80)return["warn","📉 قراءاتك الأخيرة تميل للانخفاض، وقد تنزل القادمة إلى نحو "+Math.max(pr,30)+" (تقدير تجريبي). لا تتأخر عن وجباتك."];
+ return null}
+function avg(x){return x.reduce(function(p,c){return p+c},0)/x.length}
+function dkOf(t){var d=new Date(t);return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()}
+function insights(){
+ var box=document.getElementById("ins"),a=logs().filter(function(r){return r.ts}),dl=g("rafiq_daily",[]),m=[],hv=[],ot=[],mins={},has={},ac=[],rs=[];
+ var meals=dl.filter(function(x){return x.k==="m"});
+ a.filter(function(r){return r.w==="a"}).forEach(function(r){var b=null;meals.forEach(function(x){if(x.id<=r.ts&&r.ts-x.id<=4*3600000&&(!b||x.id>b.id))b=x});if(b)(b.q.indexOf("ثقيلة")===0?hv:ot).push(r.v)});
+ if(hv.length>=2&&ot.length>=2&&avg(hv)-avg(ot)>=20)m.push("بعد الوجبات الثقيلة كان سكرك أعلى بنحو "+Math.round(avg(hv)-avg(ot))+" من الوجبات الأخرى.");
+ dl.forEach(function(x){has[x.day]=1;if(x.k==="a")mins[x.day]=(mins[x.day]||0)+x.m});
+ a.forEach(function(r){var d=dkOf(r.ts);if(mins[d]>=30)ac.push(r.v);else if(has[d])rs.push(r.v)});
+ if(ac.length>=2&&rs.length>=2&&avg(rs)-avg(ac)>=15)m.push("في الأيام التي مشيت فيها 30 دقيقة أو أكثر كان سكرك أقل بنحو "+Math.round(avg(rs)-avg(ac))+".");
+ box.style.display=m.length?"block":"none";
+ box.innerHTML=m.length?'<h3 style="margin-top:0">🔎 ملاحظات من بياناتك</h3><ul>'+m.map(function(x){return "<li>"+x+"</li>"}).join("")+'</ul><p class="note">ملاحظات تجريبية من بياناتك فقط وليست تشخيصاً. اعرضها على طبيبك.</p>':""}
 function risk(){
  var a=logs(),l3=a.slice(-3),l5=a.slice(-5),m=[];
  function hi(r){return r.v>=70&&r.c!=="ok"}
  if(l3.some(function(r){return r.v>300}))m.push(["bad","⚠️ ظهرت قراءة أعلى من 300 مؤخراً. اشرب الماء واتصل بطبيبك اليوم."]);
  if(l5.filter(function(r){return r.v<70}).length>=2)m.push(["bad","⚠️ تكرر نزول السكر في قراءاتك الأخيرة. لا تتأخر عن وجباتك، وأخبر طبيبك قريباً."]);
  if(l3.length===3&&l3.every(hi))m.push(["warn","⚠️ آخر 3 قراءات كلها أعلى من المطلوب. راجع أكلك وموعد دوائك، وأخبر طبيبك في أقرب موعد."]);
+ var tr=trend(a);if(tr)m.push(tr);
  var h=m.map(function(x){return '<div class="res '+x[0]+'">'+x[1]+'</div>'}).join("");
  document.querySelectorAll(".risk").forEach(function(d){d.innerHTML=h});
 }
-function refresh(){chart();risk()}
+function refresh(){chart();risk();insights()}
+addEventListener("hashchange",refresh);
 refresh();
 var hist=document.getElementById("hist");
 if(window.MutationObserver)new MutationObserver(refresh).observe(hist,{childList:true});
@@ -419,6 +484,38 @@ document.getElementById("bimp").onchange=function(ev){var f=ev.target.files[0];i
   KEYS.forEach(function(k){if(k in d)localStorage.setItem(k,JSON.stringify(d[k]))});
   say("ok","تم استرجاع بياناتك ✅");setTimeout(function(){location.reload()},900)}catch(e){say("bad","الملف غير صالح. اختر ملف نسخة من «رفيق السكري».")}};
  fr.readAsText(f)};
+})();
+</script>
+
+<script>
+(function(){
+var DK="rafiq_daily";
+function g(){try{var v=JSON.parse(localStorage.getItem(DK));return Array.isArray(v)?v:[]}catch(e){return[]}}
+function p(v){try{localStorage.setItem(DK,JSON.stringify(v.slice(-200)))}catch(e){}}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function dk(){var d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()}
+function tm(){return new Date().toLocaleTimeString("ar-LY",{hour:"numeric",minute:"2-digit"})}
+var sel={t:"",q:""};
+function pick(id,key){var b=document.querySelectorAll("#"+id+" button");b.forEach(function(x){x.setAttribute("aria-pressed","false");x.onclick=function(){b.forEach(function(y){y.setAttribute("aria-pressed","false")});x.setAttribute("aria-pressed","true");sel[key]=x.dataset.v}})}
+pick("mt2","t");pick("mq2","q");
+function render(){
+ var a=g().filter(function(r){return r.day===dk()}),w=a.filter(function(r){return r.k==="a"}).reduce(function(s,r){return s+r.m},0);
+ var box=document.getElementById("dlist");
+ box.innerHTML=a.length?a.slice().reverse().map(function(r){var i=g().indexOf(r);return ""}).join(""):"<p>لم تسجّل شيئاً اليوم بعد.</p>";
+ if(a.length){var all=g();box.innerHTML=a.slice().reverse().map(function(r){
+  var idx=all.findIndex(function(x){return x.id===r.id});
+  return '<div class="row"><div>'+(r.k==="m"?"🍽️ <b>"+esc(r.n)+"</b> – "+esc(r.q):"🚶 <b>"+esc(r.n)+"</b> – "+r.m+" دقيقة")+'<br><span class="note">'+esc(r.t)+'</span></div><button class="del" data-i="'+idx+'" aria-label="احذف">حذف</button></div>'}).join("");
+  box.querySelectorAll(".del").forEach(function(b){b.onclick=function(){var x=g();x.splice(+b.dataset.i,1);p(x);render()}})}
+ var s=document.getElementById("wsum"),c=w>=30?"ok":"warn";
+ s.innerHTML='<div class="res '+c+'">حركتك اليوم: '+w+' دقيقة'+(w>=30?" 👏 أحسنت، حققت الهدف!":" من 30. كل دقيقة تفيد.")+'</div>'}
+document.getElementById("msave").onclick=function(){
+ if(!sel.t||!sel.q){alert("اختر الوجبة وكيف كانت أولاً");return}
+ var a=g();a.push({id:Date.now(),day:dk(),t:tm(),k:"m",n:sel.t,q:sel.q});p(a);
+ document.querySelectorAll("#mt2 button,#mq2 button").forEach(function(b){b.setAttribute("aria-pressed","false")});
+ var last=sel.q;sel={t:"",q:""};render();
+ if(last.indexOf("ثقيلة")===0)alert("وجبة ثقيلة: امشِ 10 دقائق، وقِس سكرك بعد ساعتين.")};
+document.querySelectorAll("#act button").forEach(function(b){b.onclick=function(){var a=g();a.push({id:Date.now(),day:dk(),t:tm(),k:"a",n:b.dataset.n,m:+b.dataset.m});p(a);render()}});
+render();
 })();
 </script>
 </body>
