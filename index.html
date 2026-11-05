@@ -346,6 +346,7 @@ details p{margin:0;padding:0 16px 14px}
   });
   const auth = firebase.auth();
   const db = firebase.firestore();
+  try { db.settings({ experimentalForceLongPolling: true, useFetchStreams: false }); } catch (e) { console.error(e); }
 </script>
 <script>
 (function(){
