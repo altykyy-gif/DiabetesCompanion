@@ -297,6 +297,21 @@ details p{margin:0;padding:0 16px 14px}
   <a href="#about" data-p="about"><b>ℹ️</b>المشروع</a>
 </nav>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  firebase.initializeApp({
+    apiKey: "AIzaSyDmi9mm3oAQ5cnBPMnhY6cPryXxMHfSXds",
+    authDomain: "rafiq-sukkar.firebaseapp.com",
+    projectId: "rafiq-sukkar",
+    storageBucket: "rafiq-sukkar.firebasestorage.app",
+    messagingSenderId: "460009626145",
+    appId: "1:460009626145:web:aab63eaef4f3f32d78e160"
+  });
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+</script>
 <script>
 (function(){
 var K="rafiq_log",FK="rafiq_fs";
