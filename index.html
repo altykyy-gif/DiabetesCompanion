@@ -575,9 +575,10 @@ render();
 /* 5) لوحة الطبيب: تسجيل الدخول وقائمة المرضى */
 (function(){
   var $=function(i){return document.getElementById(i)};
-  if(typeof firebase==="undefined"||typeof auth==="undefined"||typeof db==="undefined"){
-    $("dNoFb").hidden=false; $("dLogin").hidden=true; return;
-  }
+  var A=null,D=null;
+  try{ if(window.firebase&&firebase.auth&&firebase.firestore){ A=firebase.auth(); D=firebase.firestore(); } }
+  catch(e){ console.error("Firebase init:",e); }
+  if(!A||!D){ $("dNoFb").hidden=false; $("dLogin").hidden=true; return; }
   var ERR={"auth/invalid-email":"البريد غير صحيح.","auth/missing-password":"اكتب كلمة المرور.",
     "auth/invalid-credential":"البريد أو كلمة المرور غير صحيحة.","auth/wrong-password":"كلمة المرور غير صحيحة.",
     "auth/user-not-found":"لا يوجد حساب بهذا البريد.","auth/too-many-requests":"محاولات كثيرة. انتظر قليلاً ثم أعد المحاولة.",
@@ -595,11 +596,11 @@ render();
   }
   function load(uid){
     $("dList").innerHTML="<p>جارٍ التحميل…</p>";
-    db.collection("patients").where("doctorId","==",uid).get().then(function(snap){
+    D.collection("patients").where("doctorId","==",uid).get().then(function(snap){
       var rows=[];
       snap.forEach(function(d){rows.push({id:d.id,name:d.data().name||""})});
       return Promise.all(rows.map(function(r){
-        return db.collection("patients").doc(r.id).collection("readings")
+        return D.collection("patients").doc(r.id).collection("readings")
           .orderBy("ts","desc").limit(5).get()
           .then(function(rs){var vs=[];rs.forEach(function(x){vs.push(Number(x.data().v))});r.lv=level(vs);return r})
           .catch(function(){r.lv=level([]);return r});
@@ -617,24 +618,31 @@ render();
     var em=$("dEmail").value.trim(),pw=$("dPass").value;
     msg("dErr","","");
     if(!em||!pw){msg("dErr","bad","اكتب البريد وكلمة المرور.");return}
+    msg("dErr","warn","جارٍ تسجيل الدخول… انتظر لحظة.");
     $("dIn").disabled=true;
-    auth.signInWithEmailAndPassword(em,pw)
-      .then(function(){$("dPass").value=""})
-      .catch(function(e){msg("dErr","bad",errText(e))})
-      .then(function(){$("dIn").disabled=false});
+    try{
+      A.signInWithEmailAndPassword(em,pw)
+        .then(function(){$("dPass").value="";msg("dErr","","")})
+        .catch(function(e){console.error(e);msg("dErr","bad",errText(e))})
+        .then(function(){$("dIn").disabled=false});
+    }catch(e){
+      console.error(e);
+      $("dIn").disabled=false;
+      msg("dErr","bad","تعذّر الدخول: "+(e.message||e));
+    }
   };
-  $("dOut").onclick=function(){auth.signOut()};
+  $("dOut").onclick=function(){A.signOut()};
   $("dAdd").onclick=function(){
-    var n=$("dNew").value.trim(),u=auth.currentUser;
+    var n=$("dNew").value.trim(),u=A.currentUser;
     if(!u) return;
     if(!n){msg("dAddMsg","bad","اكتب اسم المريض.");return}
     $("dAdd").disabled=true;
-    db.collection("patients").add({name:n,doctorId:u.uid,createdAt:Date.now()})
+    D.collection("patients").add({name:n,doctorId:u.uid,createdAt:Date.now()})
       .then(function(){$("dNew").value="";msg("dAddMsg","ok","تمت إضافة المريض.");load(u.uid)})
       .catch(function(){msg("dAddMsg","bad","تعذّر الحفظ. تحقق من الاتصال بالإنترنت.")})
       .then(function(){$("dAdd").disabled=false});
   };
-  auth.onAuthStateChanged(function(u){
+  A.onAuthStateChanged(function(u){
     $("dLogin").hidden=!!u;
     $("dPanel").hidden=!u;
     if(u){$("dWho").textContent=u.email||"";load(u.uid)}
