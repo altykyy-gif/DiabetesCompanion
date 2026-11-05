@@ -260,6 +260,7 @@ details p{margin:0;padding:0 16px 14px}
     <label for="lkCode">رمز الربط</label>
     <input id="lkCode" type="text" inputmode="numeric" autocomplete="off" maxlength="6" dir="ltr" placeholder="123456">
     <button class="go" id="lkBtn">ربط</button>
+    <button class="go sec" id="lkUnlink" hidden style="margin-top:10px">🔓 فك الربط</button>
     <div id="lkMsg" class="res" hidden></div>
     <p id="lkStatus" class="note"></p>
   </div>
@@ -407,7 +408,7 @@ if("serviceWorker" in navigator){addEventListener("load",function(){navigator.se
 (function(){
 var MK="rafiq_meds",TK="rafiq_taken",RK="rafiq_rem";
 function g(k,d){try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}}
-function p(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function p(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}if(k==="rafiq_meds"&&window.rafiqSyncMeds)window.rafiqSyncMeds(v)}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 function dk(){var d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()}
 function mins(t){var a=t.split(":");return +a[0]*60+ +a[1]}
@@ -616,14 +617,17 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v24";
+  var APP_VER="v25";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     $("dList").innerHTML=rows.map(function(r){
       var lv=r.lv||{t:"جارٍ حساب الحالة…",c:""};
       var st=r.linked?"🔗 مرتبط بالتطبيق":"غير مرتبط بعد";
-      var lb=r.linked?"":'<button class="go sec" data-link="'+esc(r.id)+'" data-name="'+esc(r.name)+'" data-old="'+esc(r.code||"")+'" style="margin-top:10px">🔑 إنشاء رمز ربط</button>';
-      return '<div class="card"><b>'+esc(r.name)+'</b><div class="res '+lv.c+'" style="margin:8px 0 0">'+lv.t+'</div><p class="note" style="margin:8px 0 0">'+st+'</p>'+lb+'<button class="go sec" data-del="'+esc(r.id)+'" data-name="'+esc(r.name)+'" style="margin-top:10px">🗑️ حذف هذا المريض</button></div>';
+      var lb=r.linked
+        ?'<button class="go sec" data-unlink="'+esc(r.id)+'" style="margin-top:10px">🔓 فك الربط</button>'
+        :'<button class="go sec" data-link="'+esc(r.id)+'" data-name="'+esc(r.name)+'" data-old="'+esc(r.code||"")+'" style="margin-top:10px">🔑 إنشاء رمز ربط</button>';
+      var last=r.last?'<p class="note" style="margin:6px 0 0">آخر قراءة: <b>'+esc(r.last.v)+' mg/dL</b> – '+esc(wh2(r.last.w))+' – '+esc(r.last.d||"")+'</p>':'';
+      return '<div class="card"><b>'+esc(r.name)+'</b><div class="res '+lv.c+'" style="margin:8px 0 0">'+lv.t+'</div>'+last+'<p class="note" style="margin:6px 0 0">'+st+'</p>'+lb+'<button class="go sec" data-det="'+esc(r.id)+'" style="margin-top:10px">📋 عرض التفاصيل والنتائج</button><div class="det" hidden data-open="0"></div><button class="go sec" data-del="'+esc(r.id)+'" data-name="'+esc(r.name)+'" style="margin-top:10px">🗑️ حذف هذا المريض</button></div>';
     }).join("")+'<p class="note" dir="ltr">'+APP_VER+'</p>';
   }
   function load(uid){
@@ -646,7 +650,7 @@ render();
             8000
           ).then(function(rs){
             var vs=[];rs.forEach(function(x){vs.push(Number(x.data().v))});
-            r.lv=level(vs);
+            r.lv=level(vs);r.last=rs.docs.length?rs.docs[0].data():null;
           }).catch(function(){r.lv=level([])});
         })).then(function(){
           rows.sort(function(a,b){return (a.lv.k-b.lv.k)||(a.name<b.name?-1:a.name>b.name?1:0)});
@@ -663,14 +667,15 @@ render();
   function setLink(v){try{localStorage.setItem("rafiq_link",JSON.stringify(v))}catch(e){}}
   function showLinkStatus(){
     var L=getLink();
-    $("lkStatus").textContent=L?"الحالة: مرتبط بطبيبك ✅ وتُرسل قراءاتك تلقائياً.":"الحالة: غير مرتبط بعد.";
+    $("lkStatus").textContent=L?"الحالة: مرتبط بطبيبك ✅ وتُرسل قراءاتك وأدويتك تلقائياً.":"الحالة: غير مرتبط بعد.";
+    $("lkUnlink").hidden=!L;
   }
   window.rafiqPush=function(r){
     var L=getLink();
     if(!L||!A.currentUser||A.currentUser.uid!==L.uid) return;
     D.collection("patients").doc(L.pid).collection("readings")
       .add({v:r.v,w:r.w,c:r.c,t:r.t,d:r.d,ts:r.ts})
-      .catch(function(e){console.error(e)});
+      .catch(function(e){if(e&&e.code==="permission-denied"){setLink(null);showLinkStatus()}console.error(e)});
   };
   $("lkBtn").onclick=function(){
     var code=$("lkCode").value.trim();
@@ -691,6 +696,8 @@ render();
           setLink({pid:L.pid,uid:u.uid});
           var old=[];try{old=JSON.parse(localStorage.getItem("rafiq_log"))||[]}catch(e){}
           old.filter(function(r){return r&&r.ts}).slice(-15).forEach(function(r){window.rafiqPush(r)});
+          var mm=[];try{mm=JSON.parse(localStorage.getItem("rafiq_meds"))||[]}catch(e){}
+          window.rafiqSyncMeds(mm);
         });
       });
     }).then(function(){
@@ -704,6 +711,56 @@ render();
   };
   showLinkStatus();
 
+  window.rafiqSyncMeds=function(list){
+    var L=getLink();
+    if(!L||!A.currentUser||A.currentUser.uid!==L.uid) return;
+    var arr=(Array.isArray(list)?list:[]).map(function(m){return {n:String(m.n||""),t:String(m.t||""),o:String(m.o||"")}});
+    D.collection("patients").doc(L.pid).update({meds:arr})
+      .catch(function(e){if(e&&e.code==="permission-denied"){setLink(null);showLinkStatus()}console.error(e)});
+  };
+  $("lkUnlink").onclick=function(){
+    var L=getLink();
+    if(!L) return;
+    if(!window.confirm("فك الربط مع طبيبك؟ لن تصله قراءاتك وأدويتك بعد الآن.")) return;
+    $("lkUnlink").disabled=true;
+    D.collection("patients").doc(L.pid).update({patientUid:firebase.firestore.FieldValue.delete()})
+      .then(function(){setLink(null);msg("lkMsg","ok","تم فك الربط.");showLinkStatus()})
+      .catch(function(err){msg("lkMsg","bad","تعذّر فك الربط: "+((err&&(err.code||err.message))||"unknown"))})
+      .then(function(){$("lkUnlink").disabled=false});
+  };
+  function wh2(w){return w==="f"?"صائم":"بعد الأكل"}
+  function unlinkPatient(pid,b){
+    if(!window.confirm("فك ربط هذا المريض بالتطبيق؟ لن تصل قراءاته إليك بعد الآن.")) return;
+    b.disabled=true;
+    D.collection("patients").doc(pid).update({patientUid:firebase.firestore.FieldValue.delete()})
+      .then(function(){if(A.currentUser)load(A.currentUser.uid)})
+      .catch(function(err){b.disabled=false;window.alert("تعذّر فك الربط: "+((err&&(err.code||err.message))||"unknown"))});
+  }
+  function showDetails(pid,box){
+    if(!box) return;
+    if(box.getAttribute("data-open")==="1"){box.hidden=true;box.setAttribute("data-open","0");return}
+    box.hidden=false;box.setAttribute("data-open","1");
+    box.innerHTML="<p>جارٍ تحميل التفاصيل…</p>";
+    withTimeout(Promise.all([
+      D.collection("patients").doc(pid).get({source:"server"}),
+      D.collection("patients").doc(pid).collection("readings").orderBy("ts","desc").limit(20).get({source:"server"})
+    ]),12000).then(function(res){
+      var p=res[0].data()||{},rs=res[1],h="<h3>القراءات (الأحدث أولاً)</h3>";
+      if(!rs.size) h+="<p>لا توجد قراءات بعد.</p>";
+      else h+=rs.docs.map(function(x){
+        var r=x.data();
+        return '<div class="res '+esc(r.c||"")+'" style="margin:6px 0"><b>'+esc(r.v)+' mg/dL</b> – '+esc(wh2(r.w))+' – '+esc(r.t||"")+'<br><small dir="ltr">'+esc(r.d||"")+'</small></div>';
+      }).join("");
+      h+="<h3>الأدوية</h3>";
+      var m=p.meds||[];
+      h+=m.length?m.map(function(x){
+        return '<div class="card" style="margin:6px 0"><b>'+esc(x.n)+'</b> – '+esc(x.t||"")+(x.o?' ('+esc(x.o)+')':'')+'</div>';
+      }).join(""):"<p>لا توجد أدوية مسجلة (أو لم يرسلها المريض بعد).</p>";
+      box.innerHTML=h;
+    }).catch(function(e){
+      box.innerHTML='<div class="res bad">تعذّر تحميل التفاصيل: '+esc((e&&(e.code||e.message))||"unknown")+'</div>';
+    });
+  }
   $("dIn").onclick=function(){
     var em=$("dEmail").value.trim(),pw=$("dPass").value;
     msg("dErr","","");
@@ -777,6 +834,10 @@ render();
   $("dList").onclick=function(e){
     var lk=e.target.closest?e.target.closest("[data-link]"):null;
     if(lk){makeLink(lk);return}
+    var dt=e.target.closest?e.target.closest("[data-det]"):null;
+    if(dt){showDetails(dt.getAttribute("data-det"),dt.parentNode.querySelector(".det"));return}
+    var ul=e.target.closest?e.target.closest("[data-unlink]"):null;
+    if(ul){unlinkPatient(ul.getAttribute("data-unlink"),ul);return}
     var b=e.target.closest?e.target.closest("[data-del]"):null;
     if(!b) return;
     var id=b.getAttribute("data-del"),nm=b.getAttribute("data-name")||"";
