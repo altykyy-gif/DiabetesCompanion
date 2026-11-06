@@ -634,7 +634,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v37";
+  var APP_VER="v38";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
@@ -824,40 +824,76 @@ render();
     });
   }
   // الطباعة تتم في صفحة مستقلة (تفتح في المتصفح) حتى تعمل من التطبيق المثبت والمتصفح معاً
-  function printBox(box){
-    if(!box) return;
-    var card=box.closest(".card");
-    var nm=card&&card.querySelector("b")?card.querySelector("b").textContent:"";
-    var html='<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">'
+  // بناء صفحة التقرير المطبوعة (منفصلة عن التطبيق)
+  function reportHtml(nm,inner,autoPrint){
+    return '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">'
       +'<meta name="viewport" content="width=device-width,initial-scale=1"><title>تقرير '+esc(nm)+'</title>'
       +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
       +'<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">'
-      +'<style>body{font-family:Cairo,Tahoma,sans-serif;padding:16px;color:#000;background:#fff;line-height:1.6}'
+      +'<style>body{font-family:Cairo,Tahoma,sans-serif;color:#000;background:#fff;line-height:1.6}'
       +'h2{margin:0 0 8px}h3{margin:16px 0 6px;border-bottom:1px solid #ccc}'
-      +'.card,.res{border:1px solid #999;border-radius:8px;padding:8px;margin:6px 0}'
-      +'.noprint{display:none!important}'
+      +'.card{border:1px solid #999;border-radius:8px;padding:8px;margin:6px 0}'
       +'.res{border:2px solid #666;border-radius:8px;padding:8px 10px;margin:6px 0;font-weight:700}'
       +'.res.ok{background:#e6f5ec;border-color:#1b7a3a;color:#135c2b}'
       +'.res.warn{background:#fff4d6;border-color:#8a5a00;color:#6b4400}'
       +'.res.bad{background:#fde8e8;border-color:#b00020;color:#8a0016}'
       +'h2,h3,.res,.card{-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-      +'@page{size:auto;margin:0}'
-      +'body{padding:12mm}'
+      +'.noprint{display:none!important}'
+      +'@page{size:auto;margin:0}body{padding:12mm}'
       +'@media print{.card,.res{break-inside:avoid}}</style></head><body>'
-      +'<h2>تقرير متابعة السكر – رفيق السكري</h2>'
-      +'<p>المريض: '+esc(nm)+'<br>التاريخ: '+esc(new Date().toLocaleString("ar-LY"))+'</p>'
-      +box.innerHTML
-      +'<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print()},400)};</scr'+'ipt>'
+      +inner
+      +(autoPrint?'<scr'+'ipt>window.onafterprint=function(){window.close()};window.onload=function(){setTimeout(function(){window.print()},400)};</scr'+'ipt>':'')
       +'</body></html>';
+  }
+  // المسار الأساسي: طباعة من إطار مخفي داخل الصفحة نفسها، بلا فتح أي لسان ظاهر
+  // والمسار البديل: صفحة مستقلة تُغلق تلقائياً بعد الطباعة
+  function openBlobReport(html){
     var url=URL.createObjectURL(new Blob([html],{type:"text/html;charset=utf-8"}));
     var w=window.open(url,"_blank");
     if(!w){
-      // إن منعت المتصفح النافذة الجديدة: نزّل التقرير كملف وافتحه ثم اطبعه
       var a=document.createElement("a");
-      a.href=url;a.download="تقرير-"+nm+".html";
+      a.href=url;a.download="تقرير.html";
       document.body.appendChild(a);a.click();a.remove();
     }
     setTimeout(function(){URL.revokeObjectURL(url)},600000);
+  }
+  function printBox(box){
+    if(!box) return;
+    var card=box.closest(".card");
+    var nm=card&&card.querySelector("b")?card.querySelector("b").textContent:"";
+    var inner='<h2>تقرير متابعة السكر – رفيق السكري</h2>'
+      +'<p>المريض: '+esc(nm)+'<br>التاريخ: '+esc(new Date().toLocaleString("ar-LY"))+'</p>'
+      +box.innerHTML;
+    var printHtml=reportHtml(nm,inner,false);
+    var autoHtml=reportHtml(nm,inner,true);
+    var f=document.createElement("iframe");
+    f.setAttribute("aria-hidden","true");
+    f.style.cssText="position:fixed;left:-10000px;top:0;width:800px;height:1000px;border:0;opacity:0;pointer-events:none";
+    document.body.appendChild(f);
+    var cleaned=false;
+    function cleanup(){
+      if(cleaned) return;
+      cleaned=true;
+      setTimeout(function(){if(f.parentNode) f.parentNode.removeChild(f)},300);
+    }
+    try{
+      var fd=f.contentWindow.document;
+      fd.open();fd.write(printHtml);fd.close();
+      setTimeout(function(){
+        try{
+          f.contentWindow.addEventListener("afterprint",cleanup);
+          f.contentWindow.focus();
+          f.contentWindow.print();
+          setTimeout(cleanup,300000);
+        }catch(e){
+          cleanup();
+          openBlobReport(autoHtml);
+        }
+      },700);
+    }catch(e){
+      cleanup();
+      openBlobReport(autoHtml);
+    }
   }
   function addReading(pid){
     var raw=window.prompt("القيمة (mg/dL):","");
