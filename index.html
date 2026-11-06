@@ -259,9 +259,9 @@ details p{margin:0;padding:0 16px 14px}
   </div>
   <h2>🔗 ربط مع طبيبي</h2>
   <div class="card">
-    <p>إن أعطاك طبيبك رمزاً من 6 أرقام فاكتبه هنا ليصل إليه سجلّك.</p>
+    <p>إن أعطاك طبيبك رمزاً من 8 أرقام فاكتبه هنا ليصل إليه سجلّك.</p>
     <label for="lkCode">رمز الربط</label>
-    <input id="lkCode" type="text" inputmode="numeric" autocomplete="off" maxlength="6" dir="ltr" placeholder="123456">
+    <input id="lkCode" type="text" inputmode="numeric" autocomplete="off" maxlength="8" dir="ltr" placeholder="12345678">
     <label style="display:flex;gap:10px;align-items:center;margin:10px 0"><input type="checkbox" id="lkConsent" style="width:auto;min-height:0"> أوافق على إرسال قراءاتي وأدويتي ووجباتي ونشاطي وسجل أخذ الدواء إلى طبيبي المرتبط.</label>
     <button class="go" id="lkBtn">ربط</button>
     <button class="go sec" id="lkSyncMeds" hidden style="margin-top:10px">🔄 إرسال الأدوية للطبيب الآن</button>
@@ -634,7 +634,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v38";
+  var APP_VER="v39";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
@@ -701,7 +701,7 @@ render();
   $("lkBtn").onclick=function(){
     var code=$("lkCode").value.trim();
     if(!$("lkConsent").checked){msg("lkMsg","bad","يجب الموافقة أولاً على إرسال بياناتك إلى طبيبك.");return}
-    if(!/^\d{6}$/.test(code)){msg("lkMsg","bad","اكتب الرمز المكون من 6 أرقام.");return}
+    if(!/^\d{8}$/.test(code)){msg("lkMsg","bad","اكتب الرمز المكون من 8 أرقام.");return}
     msg("lkMsg","warn","جارٍ الربط… انتظر.");
     $("lkBtn").disabled=true;
     var who=A.currentUser?Promise.resolve(A.currentUser):A.signInAnonymously().then(function(c){return c.user});
@@ -712,7 +712,7 @@ render();
         if(L.used) throw {code:"used"};
         if(!(L.exp>Date.now())) throw {code:"expired"};
         var b=D.batch();
-        b.update(D.collection("patients").doc(L.pid),{patientUid:u.uid,linkHistory:firebase.firestore.FieldValue.arrayUnion({a:"link",by:"patient",ts:Date.now()})});
+        b.update(D.collection("patients").doc(L.pid),{patientUid:u.uid,consent:{accepted:true,ts:Date.now(),text:"أوافق على إرسال قراءاتي وأدويتي ووجباتي ونشاطي وسجل أخذ الدواء إلى طبيبي المرتبط."},linkHistory:firebase.firestore.FieldValue.arrayUnion({a:"link",by:"patient",ts:Date.now()})});
         b.update(D.collection("links").doc(code),{used:true});
         return b.commit().then(function(){
           setLink({pid:L.pid,uid:u.uid});
@@ -1026,41 +1026,15 @@ render();
   $("dOut").onclick=function(){A.signOut()};
   $("dRefresh").onclick=function(){if(A.currentUser)load(A.currentUser.uid)};
   // حذف مريض: زر الحذف داخل كل بطاقة مع تأكيد قبل الحذف
-  // حذف جميع مرضى الطبيب بتأكيد مزدوج
-  $("dDelAll").onclick=function(){
-    var u=A.currentUser;
-    if(!u) return;
-    if(!window.confirm("حذف جميع المرضى في هذه القائمة؟")) return;
-    if(!window.confirm("تأكيد نهائي: لا يمكن التراجع عن حذف كل المرضى. هل تريد المتابعة؟")) return;
-    var btn=$("dDelAll");
-    btn.disabled=true;
-    D.collection("patients").where("doctorId","==",u.uid).get({source:"server"})
-      .then(function(snap){
-        var docs=snap.docs,chain=Promise.resolve();
-        for(var i=0;i<docs.length;i+=400){
-          (function(part){
-            chain=chain.then(function(){
-              var b=D.batch();
-              part.forEach(function(d){b.delete(d.ref)});
-              return b.commit();
-            });
-          })(docs.slice(i,i+400));
-        }
-        return chain.then(function(){return docs.length});
-      })
-      .then(function(n){window.alert("تم حذف "+n+" مريض.");load(u.uid)})
-      .catch(function(err){window.alert("تعذّر الحذف: "+((err&&(err.code||err.message))||"unknown"))})
-      .then(function(){btn.disabled=false});
-  };
   function makeLink(b){
     var u=A.currentUser;
     if(!u) return;
     var pid=b.getAttribute("data-link"),nm=b.getAttribute("data-name")||"";
     b.disabled=true;
     function tryCode(n){
-      var c=String(Math.floor(100000+Math.random()*900000));
+      var c=String(Math.floor(10000000+Math.random()*90000000));
       var batch=D.batch();
-      batch.set(D.collection("links").doc(c),{pid:pid,doctorId:u.uid,exp:Date.now()+3*24*3600*1000,used:false});
+      batch.set(D.collection("links").doc(c),{pid:pid,doctorId:u.uid,exp:Date.now()+24*3600*1000,used:false});
       batch.update(D.collection("patients").doc(pid),{linkCode:c});
       return batch.commit().then(function(){return c},function(err){
         if(n<5&&err&&err.code==="permission-denied") return tryCode(n+1);
@@ -1068,12 +1042,38 @@ render();
       });
     }
     tryCode(0).then(function(code){
-      window.alert("رمز ربط "+nm+": "+code+"\nصالح لمدة 3 أيام ولمرة واحدة. أعطه للمريض.");
+      window.alert("رمز ربط "+nm+": "+code+"\nصالح لمدة 24 ساعة ولمرة واحدة. أعطه للمريض.");
       load(u.uid);
     }).catch(function(err){
       b.disabled=false;
       window.alert("تعذّر إنشاء الرمز: "+((err&&(err.code||err.message))||"unknown"));
     });
+  }
+  function deleteRefsInBatches(refs){
+    var chain=Promise.resolve();
+    for(var i=0;i<refs.length;i+=400){
+      (function(part){
+        chain=chain.then(function(){
+          var b=D.batch();
+          part.forEach(function(r){b.delete(r)});
+          return b.commit();
+        });
+      })(refs.slice(i,i+400));
+    }
+    return chain;
+  }
+  // حذف المريض مع قراءاته وأحداثه (وجبات ونشاط وأخذ دواء)
+  function deletePatientDeep(pid){
+    var pr=D.collection("patients").doc(pid);
+    return Promise.all([
+      pr.collection("readings").get({source:"server"}),
+      pr.collection("events").get({source:"server"})
+    ]).then(function(res){
+      var refs=[];
+      res[0].forEach(function(d){refs.push(d.ref)});
+      res[1].forEach(function(d){refs.push(d.ref)});
+      return deleteRefsInBatches(refs);
+    }).then(function(){return pr.delete()});
   }
   // حذف جميع مرضى الطبيب بتأكيد مزدوج
   $("dDelAll").onclick=function(){
@@ -1085,41 +1085,14 @@ render();
     btn.disabled=true;
     D.collection("patients").where("doctorId","==",u.uid).get({source:"server"})
       .then(function(snap){
-        var docs=snap.docs,chain=Promise.resolve();
-        for(var i=0;i<docs.length;i+=400){
-          (function(part){
-            chain=chain.then(function(){
-              var b=D.batch();
-              part.forEach(function(d){b.delete(d.ref)});
-              return b.commit();
-            });
-          })(docs.slice(i,i+400));
-        }
-        return chain.then(function(){return docs.length});
+        var ids=snap.docs.map(function(d){return d.id});
+        return ids.reduce(function(p,id){return p.then(function(){return deletePatientDeep(id)})},Promise.resolve())
+          .then(function(){return ids.length});
       })
       .then(function(n){window.alert("تم حذف "+n+" مريض.");load(u.uid)})
       .catch(function(err){window.alert("تعذّر الحذف: "+((err&&(err.code||err.message))||"unknown"))})
       .then(function(){btn.disabled=false});
   };
-  function makeLink(b){
-    var u=A.currentUser;
-    if(!u) return;
-    var pid=b.getAttribute("data-link"),nm=b.getAttribute("data-name")||"";
-    var code=String(Math.floor(100000+Math.random()*900000));
-    var batch=D.batch();
-    batch.set(D.collection("links").doc(code),{pid:pid,doctorId:u.uid,exp:Date.now()+3*24*3600*1000,used:false});
-    batch.update(D.collection("patients").doc(pid),{linkCode:code});
-    b.disabled=true;
-    batch.commit()
-      .then(function(){
-        window.alert("رمز ربط "+nm+": "+code+"\nصالح لمدة 3 أيام ولمرة واحدة. أعطه للمريض.");
-        load(u.uid);
-      })
-      .catch(function(err){
-        b.disabled=false;
-        window.alert("تعذّر إنشاء الرمز: "+((err&&(err.code||err.message))||"unknown"));
-      });
-  }
   $("dList").onclick=function(e){
     var nt=e.target.closest?e.target.closest("[data-note]"):null;
     if(nt){editNote(nt.getAttribute("data-note"));return}
@@ -1138,7 +1111,7 @@ render();
     var id=b.getAttribute("data-del"),nm=b.getAttribute("data-name")||"";
     if(!window.confirm("حذف المريض "+nm+"؟ لا يمكن التراجع عن الحذف.")) return;
     b.disabled=true;
-    D.collection("patients").doc(id).delete()
+    deletePatientDeep(id)
       .then(function(){if(A.currentUser)load(A.currentUser.uid)})
       .catch(function(err){b.disabled=false;window.alert("تعذّر الحذف: "+((err&&(err.code||err.message))||"unknown"))});
   };
