@@ -83,7 +83,7 @@ details p{margin:0;padding:0 16px 14px}
 #printarea{display:none}
 @media print{body>*:not(#printarea){display:none!important}body::before{display:none}#printarea{display:block!important;color:#000;background:#fff;font:14px/1.8 Cairo,Tahoma,Arial,sans-serif;padding:10px}#printarea table{width:100%;border-collapse:collapse}#printarea td,#printarea th{border:1px solid #888;padding:4px 8px}}
 @media (min-width:900px){body{--fs:20px}main{padding:28px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.grid .big{margin:0}}
-@media print{body.printing-det *{visibility:hidden}body.printing-det .pr,body.printing-det .pr *{visibility:visible}body.printing-det .pr{position:absolute;left:0;top:0;width:100%;background:#fff}.noprint{display:none!important}}
+#detPrint{display:none}@media print{body>*:not(#detPrint){display:none!important}#detPrint{display:block!important;background:#fff;color:#000;padding:12px}#detPrint .noprint{display:none!important}#detPrint .card,#detPrint .res{break-inside:avoid}}
 </style>
 </head>
 <body>
@@ -634,7 +634,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v30";
+  var APP_VER="v31";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
@@ -825,9 +825,16 @@ render();
   }
   function printBox(box){
     if(!box) return;
-    document.body.classList.add("printing-det");box.classList.add("pr");
-    window.print();
-    setTimeout(function(){document.body.classList.remove("printing-det");box.classList.remove("pr")},800);
+    var card=box.closest(".card");
+    var nm=card&&card.querySelector("b")?card.querySelector("b").textContent:"";
+    var wrap=document.createElement("div");
+    wrap.id="detPrint";
+    wrap.innerHTML='<h2>تقرير متابعة السكر – رفيق السكري</h2><p>المريض: '+esc(nm)+'<br>التاريخ: '+esc(new Date().toLocaleString("ar-LY"))+'</p>'+box.innerHTML;
+    document.body.appendChild(wrap);
+    setTimeout(function(){
+      window.print();
+      setTimeout(function(){wrap.remove()},800);
+    },150);
   }
   function addReading(pid){
     var raw=window.prompt("القيمة (mg/dL):","");
