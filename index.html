@@ -634,7 +634,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v36";
+  var APP_VER="v37";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
@@ -835,7 +835,15 @@ render();
       +'<style>body{font-family:Cairo,Tahoma,sans-serif;padding:16px;color:#000;background:#fff;line-height:1.6}'
       +'h2{margin:0 0 8px}h3{margin:16px 0 6px;border-bottom:1px solid #ccc}'
       +'.card,.res{border:1px solid #999;border-radius:8px;padding:8px;margin:6px 0}'
-      +'.noprint{display:none!important}@media print{.card,.res{break-inside:avoid}}</style></head><body>'
+      +'.noprint{display:none!important}'
+      +'.res{border:2px solid #666;border-radius:8px;padding:8px 10px;margin:6px 0;font-weight:700}'
+      +'.res.ok{background:#e6f5ec;border-color:#1b7a3a;color:#135c2b}'
+      +'.res.warn{background:#fff4d6;border-color:#8a5a00;color:#6b4400}'
+      +'.res.bad{background:#fde8e8;border-color:#b00020;color:#8a0016}'
+      +'h2,h3,.res,.card{-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+      +'@page{size:auto;margin:0}'
+      +'body{padding:12mm}'
+      +'@media print{.card,.res{break-inside:avoid}}</style></head><body>'
       +'<h2>تقرير متابعة السكر – رفيق السكري</h2>'
       +'<p>المريض: '+esc(nm)+'<br>التاريخ: '+esc(new Date().toLocaleString("ar-LY"))+'</p>'
       +box.innerHTML
