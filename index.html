@@ -265,6 +265,7 @@ details p{margin:0;padding:0 16px 14px}
     <label style="display:flex;gap:10px;align-items:center;margin:10px 0"><input type="checkbox" id="lkConsent" style="width:auto;min-height:0"> أوافق على إرسال قراءاتي وأدويتي ووجباتي ونشاطي وسجل أخذ الدواء إلى طبيبي المرتبط.</label>
     <button class="go" id="lkBtn">ربط</button>
     <button class="go sec" id="lkNotifyBtn" hidden style="margin-top:10px">🔔 تفعيل إشعارات الملاحظات</button>
+    <button class="go sec" id="lkTestNotif" hidden style="margin-top:10px">🔔 إرسال إشعار تجريبي</button>
     <button class="go sec" id="lkSyncMeds" hidden style="margin-top:10px">🔄 إرسال الأدوية للطبيب الآن</button>
     <button class="go sec" id="lkUnlink" hidden style="margin-top:10px">🔓 فك الربط</button>
     <div id="lkMsg" class="res" hidden></div>
@@ -635,7 +636,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v40";
+  var APP_VER="v41";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
@@ -687,11 +688,13 @@ render();
   function setLink(v){try{localStorage.setItem("rafiq_link",JSON.stringify(v))}catch(e){}}
   function showLinkStatus(){
     var L=getLink();
-    $("lkStatus").textContent=L?"الحالة: مرتبط بطبيبك ✅ وتُرسل قراءاتك وأدويتك تلقائياً.":"الحالة: غير مرتبط بعد.";
+    var nst=!("Notification" in window)?"غير مدعومة":(Notification.permission==="granted"?"مفعّلة ✅":(Notification.permission==="denied"?"مرفوضة":"غير مفعّلة"));
+    $("lkStatus").textContent=(L?"الحالة: مرتبط بطبيبك ✅ وتُرسل قراءاتك وأدويتك تلقائياً.":"الحالة: غير مرتبط بعد.")+" | الإشعارات: "+nst;
     $("lkUnlink").hidden=!L;
     $("lkSyncMeds").hidden=!L;
     $("svCard").hidden=!L;
     $("lkNotifyBtn").hidden=!L||!("Notification" in window)||Notification.permission==="granted";
+    $("lkTestNotif").hidden=!L||!("Notification" in window)||Notification.permission!=="granted";
   }
   window.rafiqPush=function(r){
     var L=getLink();
@@ -752,6 +755,10 @@ render();
         console.error(e);
         if(manual)msg("lkMsg","bad","تعذّر إرسال الأدوية: "+((e&&(e.code||e.message))||"unknown"));
       });
+  };
+  $("lkTestNotif").onclick=function(){
+    notifyPatient("اختبار الإشعارات","إذا ظهر هذا الإشعار فالإعداد سليم.");
+    msg("lkMsg","ok","أُرسل إشعار تجريبي. إن لم يظهر فتحقق من إعدادات الإشعارات في الهاتف.");
   };
   $("lkNotifyBtn").onclick=function(){
     if(!("Notification" in window)){msg("lkMsg","bad","هذا المتصفح لا يدعم الإشعارات.");return}
@@ -983,10 +990,19 @@ render();
   }
   // يُشعر المريض عند وصول ملاحظة جديدة (أثناء فتح التطبيق أو في الخلفية القريبة)
   function checkNoteNotify(note,at){
-    var seen=Number(localStorage.getItem("rafiq_note_seen")||0);
-    if(!seen){localStorage.setItem("rafiq_note_seen",String(at||0));return}
-    if(note&&at>seen) notifyPatient("ملاحظة جديدة من طبيبك",note);
-    if(at>seen) localStorage.setItem("rafiq_note_seen",String(at));
+    at=Number(at)||0;
+    var seenAt=Number(localStorage.getItem("rafiq_note_seen")||0);
+    var seenText=localStorage.getItem("rafiq_note_text")||"";
+    if(!localStorage.getItem("rafiq_note_init")){
+      localStorage.setItem("rafiq_note_init","1");
+      localStorage.setItem("rafiq_note_seen",String(at));
+      localStorage.setItem("rafiq_note_text",note||"");
+      return;
+    }
+    var changed=(at>seenAt)||(!!note&&note!==seenText);
+    if(note&&changed) notifyPatient("ملاحظة جديدة من طبيبك",note);
+    localStorage.setItem("rafiq_note_seen",String(Math.max(at,seenAt)));
+    localStorage.setItem("rafiq_note_text",note||"");
   }
   function loadNote(){
     var L=getLink(); if(!L) return;
@@ -1002,7 +1018,7 @@ render();
       else console.error("loadNote:",e);
     });
   }
-  setInterval(function(){if(document.visibilityState!=="hidden"&&getLink())loadNote()},60000);
+  setInterval(function(){if(document.visibilityState!=="hidden"&&getLink())loadNote()},30000);
   // تحديث الملاحظة عند فتح صفحة التقرير/الربط
   document.querySelectorAll('[data-go="more"]').forEach(function(b){b.addEventListener("click",function(){setTimeout(loadNote,300)})});
   window.addEventListener("hashchange",function(){if(/more/.test(location.hash))loadNote()});
