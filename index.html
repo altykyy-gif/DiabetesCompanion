@@ -634,7 +634,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v32";
+  var APP_VER="v33";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
@@ -831,10 +831,15 @@ render();
     wrap.id="detPrint";
     wrap.innerHTML='<h2>تقرير متابعة السكر – رفيق السكري</h2><p>المريض: '+esc(nm)+'<br>التاريخ: '+esc(new Date().toLocaleString("ar-LY"))+'</p>'+box.innerHTML;
     document.body.appendChild(wrap);
-    setTimeout(function(){
-      window.print();
-      setTimeout(function(){wrap.remove()},800);
-    },150);
+    // لا نحذف التقرير إلا بعد إغلاق نافذة الطباعة، لأن الهاتف يلتقط المعاينة بعد استدعاء print
+    var cleanup=function(){
+      var w=document.getElementById("detPrint");
+      if(w) w.remove();
+      window.removeEventListener("afterprint",cleanup);
+    };
+    window.addEventListener("afterprint",cleanup);
+    setTimeout(cleanup,300000);
+    setTimeout(function(){window.print()},150);
   }
   function addReading(pid){
     var raw=window.prompt("القيمة (mg/dL):","");
