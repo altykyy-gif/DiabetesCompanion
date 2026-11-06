@@ -83,6 +83,7 @@ details p{margin:0;padding:0 16px 14px}
 #printarea{display:none}
 @media print{body>*:not(#printarea){display:none!important}body::before{display:none}#printarea{display:block!important;color:#000;background:#fff;font:14px/1.8 Cairo,Tahoma,Arial,sans-serif;padding:10px}#printarea table{width:100%;border-collapse:collapse}#printarea td,#printarea th{border:1px solid #888;padding:4px 8px}}
 @media (min-width:900px){body{--fs:20px}main{padding:28px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.grid .big{margin:0}}
+@media print{body.printing-det *{visibility:hidden}body.printing-det .pr,body.printing-det .pr *{visibility:visible}body.printing-det .pr{position:absolute;left:0;top:0;width:100%;background:#fff}.noprint{display:none!important}}
 </style>
 </head>
 <body>
@@ -231,6 +232,7 @@ details p{margin:0;padding:0 16px 14px}
 <section id="ask">
   <h2>❓ أسئلة عن الأكل</h2>
   <p class="note">اضغط على السؤال لتقرأ الجواب. الإجابات إرشادية وتعمل دون إنترنت.</p>
+  <input id="faqQ" type="search" placeholder="ابحث في الأسئلة..." style="margin-bottom:12px">
   <details><summary>🌴 هل آكل التمر؟</summary><p>نعم بكمية صغيرة: حبة إلى حبتين مع وجبة، وليس وحده على معدة فارغة. التمر سكر طبيعي يرفع السكر. استثناء: حبات التمر الثلاث علاج لهبوط السكر. قِس سكرك بعد ساعتين لتعرف كيف يتأثر جسمك.</p></details>
   <details><summary>🌙 هل أصوم رمضان؟</summary><p>اسأل طبيبك قبل رمضان بأسابيع؛ فقد يغيّر مواعيد الدواء أو جرعته. لا تغيّر الدواء بنفسك. افطر فوراً إذا نزل السكر عن 70 أو ارتفع فوق 300 أو شعرت بدوخة شديدة. في السحور كُل بروتيناً وخضاراً وقليلاً من النشويات، واشرب الماء بين الإفطار والسحور.</p></details>
   <details><summary>🍞 كم آكل من الخبز؟</summary><p>كمية صغيرة: ربع رغيف إلى نصفه في الوجبة، ويفضّل خبز القمح الكامل أو الشعير. اجعل الخضار والسلطة معه ولا تأكل الخبز وحده.</p></details>
@@ -260,11 +262,21 @@ details p{margin:0;padding:0 16px 14px}
     <p>إن أعطاك طبيبك رمزاً من 6 أرقام فاكتبه هنا ليصل إليه سجلّك.</p>
     <label for="lkCode">رمز الربط</label>
     <input id="lkCode" type="text" inputmode="numeric" autocomplete="off" maxlength="6" dir="ltr" placeholder="123456">
+    <label style="display:flex;gap:10px;align-items:center;margin:10px 0"><input type="checkbox" id="lkConsent" style="width:auto;min-height:0"> أوافق على إرسال قراءاتي وأدويتي ووجباتي ونشاطي وسجل أخذ الدواء إلى طبيبي المرتبط.</label>
     <button class="go" id="lkBtn">ربط</button>
     <button class="go sec" id="lkSyncMeds" hidden style="margin-top:10px">🔄 إرسال الأدوية للطبيب الآن</button>
     <button class="go sec" id="lkUnlink" hidden style="margin-top:10px">🔓 فك الربط</button>
     <div id="lkMsg" class="res" hidden></div>
     <p id="lkStatus" class="note"></p>
+    <div id="lkNote" class="card" hidden></div>
+    <div id="svCard" hidden>
+      <h3>حفظ حسابك</h3>
+      <p class="note">احفظ حسابك ببريد وكلمة مرور حتى لا تفقد الربط عند تغيير الهاتف.</p>
+      <input id="svEmail" type="email" dir="ltr" placeholder="البريد الإلكتروني" autocomplete="email">
+      <input id="svPass" type="password" dir="ltr" placeholder="كلمة مرور (6 أحرف على الأقل)" autocomplete="new-password">
+      <button class="go sec" id="svBtn">حفظ الحساب</button>
+      <div id="svMsg" class="res" hidden></div>
+    </div>
   </div>
   <h2>👨‍⚕️ لوحة الطبيب</h2>
   <div class="card">
@@ -308,7 +320,9 @@ details p{margin:0;padding:0 16px 14px}
     <h3>المرضى (الأخطر أولاً)</h3>
     <button class="go sec" id="dRefresh">🔄 تحديث القائمة</button>
     <button class="go sec" id="dDelAll" style="margin-top:10px">🗑️ حذف كل المرضى</button>
+    <div id="dAlert" class="res bad" hidden></div>
     <div id="dList"></div>
+    <button class="go sec" id="dTestJudge" style="margin-top:10px">🧪 اختبار دوال التقييم</button>
     <button class="go sec" id="dTest">🛠️ فحص الاتصال بالخادم</button>
     <div id="dTestRes" class="res" hidden></div>
   </div>
@@ -373,6 +387,7 @@ addEventListener("hashchange",show);show();
 document.querySelectorAll("[data-go]").forEach(function(b){b.onclick=function(){location.hash=b.dataset.go}});
 function load(){try{return JSON.parse(localStorage.getItem(K))||[]}catch(e){return[]}}
 function store(a){try{localStorage.setItem(K,JSON.stringify(a))}catch(e){}}
+window.rafiqJudge=judge;
 function judge(v,w){
  if(v<54)return["bad","خطر: السكر منخفض جداً. كُل أو اشرب سكراً الآن، واطلب مساعدة من حولك. إن لم تتحسن اتصل بالإسعاف.","هبوط شديد"];
  if(v<70)return["bad","السكر منخفض. كُل 3 ملاعق صغيرة سكر أو نصف كوب عصير، وأعد القياس بعد 15 دقيقة.","منخفض"];
@@ -619,9 +634,11 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v27";
+  var APP_VER="v28";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
+    var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
+    var al=$("dAlert");if(al){al.hidden=!dg;al.textContent=dg?"⚠️ "+dg+" مريض بحالة خطر أو هبوط، راجعهم أولاً.":""}
     $("dList").innerHTML=rows.map(function(r){
       var lv=r.lv||{t:"جارٍ حساب الحالة…",c:""};
       var st=r.linked?"🔗 مرتبط بالتطبيق":"غير مرتبط بعد";
@@ -672,6 +689,7 @@ render();
     $("lkStatus").textContent=L?"الحالة: مرتبط بطبيبك ✅ وتُرسل قراءاتك وأدويتك تلقائياً.":"الحالة: غير مرتبط بعد.";
     $("lkUnlink").hidden=!L;
     $("lkSyncMeds").hidden=!L;
+    $("svCard").hidden=!L;
   }
   window.rafiqPush=function(r){
     var L=getLink();
@@ -682,6 +700,7 @@ render();
   };
   $("lkBtn").onclick=function(){
     var code=$("lkCode").value.trim();
+    if(!$("lkConsent").checked){msg("lkMsg","bad","يجب الموافقة أولاً على إرسال بياناتك إلى طبيبك.");return}
     if(!/^\d{6}$/.test(code)){msg("lkMsg","bad","اكتب الرمز المكون من 6 أرقام.");return}
     msg("lkMsg","warn","جارٍ الربط… انتظر.");
     $("lkBtn").disabled=true;
@@ -693,7 +712,7 @@ render();
         if(L.used) throw {code:"used"};
         if(!(L.exp>Date.now())) throw {code:"expired"};
         var b=D.batch();
-        b.update(D.collection("patients").doc(L.pid),{patientUid:u.uid});
+        b.update(D.collection("patients").doc(L.pid),{patientUid:u.uid,linkHistory:firebase.firestore.FieldValue.arrayUnion({a:"link",by:"patient",ts:Date.now()})});
         b.update(D.collection("links").doc(code),{used:true});
         return b.commit().then(function(){
           setLink({pid:L.pid,uid:u.uid});
@@ -707,6 +726,8 @@ render();
       msg("lkMsg","ok","تم الربط بنجاح. ستُرسل قراءاتك إلى طبيبك.");
       $("lkCode").value="";
       showLinkStatus();
+      window.rafiqSyncAll();
+      loadNote();
     }).catch(function(e){
       var m={"invalid-code":"الرمز غير صحيح.","used":"هذا الرمز استُخدم من قبل.","expired":"انتهت صلاحية الرمز. اطلب رمزاً جديداً من طبيبك.","permission-denied":"الرمز غير صحيح أو منتهي.","auth/admin-restricted-operation":"الدخول المجهول غير مفعّل في Firebase."};
       msg("lkMsg","bad",m[e&&e.code]||("تعذّر الربط: "+((e&&(e.code||e.message))||"unknown")));
@@ -730,17 +751,21 @@ render();
         if(manual)msg("lkMsg","bad","تعذّر إرسال الأدوية: "+((e&&(e.code||e.message))||"unknown"));
       });
   };
-  $("lkSyncMeds").onclick=function(){window.rafiqSyncMeds(readMeds(),true)};
+  $("lkSyncMeds").onclick=function(){
+    if(!getLink()){msg("lkMsg","bad","أنت غير مرتبط بطبيب بعد.");return}
+    msg("lkMsg","warn","جارٍ المزامنة…");
+    window.rafiqSyncAll().then(function(n){msg("lkMsg","ok","تمت المزامنة مع طبيبك"+(n?" ("+n+" عنصر جديد)":"")+".");loadNote()});
+  };
   // عند كل تحميل للصفحة بعد جاهزية الحساب، أرسل الأدوية الحالية
   A.onAuthStateChanged(function(u){
-    if(u&&u.isAnonymous&&getLink()) window.rafiqSyncMeds(readMeds(),false);
+    if(u&&getLink()){window.rafiqSyncAll();loadNote()}
   });
   $("lkUnlink").onclick=function(){
     var L=getLink();
     if(!L) return;
     if(!window.confirm("فك الربط مع طبيبك؟ لن تصله قراءاتك وأدويتك بعد الآن.")) return;
     $("lkUnlink").disabled=true;
-    D.collection("patients").doc(L.pid).update({patientUid:firebase.firestore.FieldValue.delete()})
+    D.collection("patients").doc(L.pid).update({patientUid:firebase.firestore.FieldValue.delete(),linkHistory:firebase.firestore.FieldValue.arrayUnion({a:"unlink",by:"patient",ts:Date.now()})})
       .then(function(){setLink(null);msg("lkMsg","ok","تم فك الربط.");showLinkStatus()})
       .catch(function(err){msg("lkMsg","bad","تعذّر فك الربط: "+((err&&(err.code||err.message))||"unknown"))})
       .then(function(){$("lkUnlink").disabled=false});
@@ -749,7 +774,7 @@ render();
   function unlinkPatient(pid,b){
     if(!window.confirm("فك ربط هذا المريض بالتطبيق؟ لن تصل قراءاته إليك بعد الآن.")) return;
     b.disabled=true;
-    D.collection("patients").doc(pid).update({patientUid:firebase.firestore.FieldValue.delete()})
+    D.collection("patients").doc(pid).update({patientUid:firebase.firestore.FieldValue.delete(),linkHistory:firebase.firestore.FieldValue.arrayUnion({a:"unlink",by:"doctor",ts:Date.now()})})
       .then(function(){if(A.currentUser)load(A.currentUser.uid)})
       .catch(function(err){b.disabled=false;window.alert("تعذّر فك الربط: "+((err&&(err.code||err.message))||"unknown"))});
   }
@@ -758,26 +783,143 @@ render();
     if(box.getAttribute("data-open")==="1"){box.hidden=true;box.setAttribute("data-open","0");return}
     box.hidden=false;box.setAttribute("data-open","1");
     box.innerHTML="<p>جارٍ تحميل التفاصيل…</p>";
+    var pr=D.collection("patients").doc(pid);
     withTimeout(Promise.all([
-      D.collection("patients").doc(pid).get({source:"server"}),
-      D.collection("patients").doc(pid).collection("readings").orderBy("ts","desc").limit(20).get({source:"server"})
-    ]),12000).then(function(res){
-      var p=res[0].data()||{},rs=res[1],h="<h3>القراءات (الأحدث أولاً)</h3>";
-      if(!rs.size) h+="<p>لا توجد قراءات بعد.</p>";
-      else h+=rs.docs.map(function(x){
+      pr.get({source:"server"}),
+      pr.collection("readings").orderBy("ts","desc").limit(20).get({source:"server"}),
+      pr.collection("events").orderBy("ts","desc").limit(60).get({source:"server"})
+    ]),15000).then(function(res){
+      var p=res[0].data()||{},rs=res[1],ev=res[2],h="";
+      h+="<h3>القراءات (الأحدث أولاً)</h3>";
+      h+=rs.size?rs.docs.map(function(x){
         var r=x.data();
-        return '<div class="res '+esc(r.c||"")+'" style="margin:6px 0"><b>'+esc(r.v)+' mg/dL</b> – '+esc(wh2(r.w))+' – '+esc(r.t||"")+'<br><small dir="ltr">'+esc(r.d||"")+'</small></div>';
-      }).join("");
-      h+="<h3>الأدوية</h3>";
+        return '<div class="res '+esc(r.c||"")+'" style="margin:6px 0"><b>'+esc(r.v)+' mg/dL</b> – '+esc(wh2(r.w))+' – '+esc(r.t||"")+'<br><small dir="ltr">'+esc(r.d||"")+(r.by==="doctor"?" (أضافها الطبيب)":"")+'</small></div>';
+      }).join(""):"<p>لا توجد قراءات بعد.</p>";
+      var meals=[],tk=[];
+      ev.docs.forEach(function(x){
+        var e=x.data();
+        if(e.k==="m") meals.push('<div class="card" style="margin:6px 0">🍽️ '+esc(e.n)+' ('+esc(e.q==="heavy"?"ثقيلة":(e.q==="light"?"خفيفة":"عادية"))+') – '+esc(e.day)+' '+esc(e.t||"")+'</div>');
+        else if(e.k==="a") meals.push('<div class="card" style="margin:6px 0">🚶 '+esc(e.n)+' ('+esc(e.m)+' دقيقة) – '+esc(e.day)+'</div>');
+        else if(e.k==="taken") tk.push('<div style="margin:4px 0">✅ '+esc(e.day)+' – '+esc(e.dn||"دواء")+'</div>');
+      });
+      h+="<h3>الوجبات والنشاط</h3>";
+      h+=meals.length?meals.join(""):"<p>لا توجد وجبات أو نشاط مرسل بعد.</p>";
+      h+="<h3>أخذ الأدوية</h3>";
+      h+=tk.length?tk.join(""):"<p>لا يوجد تسجيل لأخذ الأدوية بعد.</p>";
+      h+="<h3>الأدوية المسجلة</h3>";
       var m=p.meds||[];
-      h+=m.length?m.map(function(x){
-        return '<div class="card" style="margin:6px 0"><b>'+esc(x.n)+'</b> – '+esc(x.t||"")+(x.o?' ('+esc(x.o)+')':'')+'</div>';
-      }).join(""):"<p>لا توجد أدوية مسجلة (أو لم يرسلها المريض بعد).</p>";
+      h+=m.length?m.map(function(x){return '<div class="card" style="margin:6px 0"><b>'+esc(x.n)+'</b> – '+esc(x.t||"")+(x.o?' ('+esc(x.o)+')':'')+'</div>'}).join(""):"<p>لا توجد أدوية مسجلة.</p>";
+      var hist=p.linkHistory||[];
+      h+="<h3>سجل الربط</h3>";
+      h+=hist.length?hist.map(function(x){return '<div style="margin:4px 0">'+(x.a==="link"?"🔗 ربط":"🔓 فك ربط")+' ('+(x.by==="doctor"?"من الطبيب":"من المريض")+') – '+esc(new Date(x.ts).toLocaleString("ar-LY"))+'</div>'}).join(""):"<p>لا يوجد سجل بعد.</p>";
+      if(p.note) h+='<div class="card" style="margin-top:10px"><b>ملاحظتك الحالية للمريض:</b> '+esc(p.note)+'</div>';
+      h+='<div class="noprint" style="margin-top:12px">';
+      h+='<button class="go sec" data-note="'+esc(pid)+'">📝 كتابة ملاحظة للمريض</button>';
+      h+='<button class="go sec" data-addr="'+esc(pid)+'" style="margin-top:8px">➕ إضافة قراءة يدوياً</button>';
+      h+='<button class="go sec" data-print="1" style="margin-top:8px">🖨️ طباعة التقرير / حفظ PDF</button>';
+      h+='</div>';
       box.innerHTML=h;
     }).catch(function(e){
       box.innerHTML='<div class="res bad">تعذّر تحميل التفاصيل: '+esc((e&&(e.code||e.message))||"unknown")+'</div>';
     });
   }
+  function printBox(box){
+    if(!box) return;
+    document.body.classList.add("printing-det");box.classList.add("pr");
+    window.print();
+    setTimeout(function(){document.body.classList.remove("printing-det");box.classList.remove("pr")},800);
+  }
+  function addReading(pid){
+    var raw=window.prompt("القيمة (mg/dL):","");
+    if(raw===null) return;
+    var v=Number(raw);
+    if(!v||v<20||v>600){window.alert("أدخل قيمة صحيحة بين 20 و600.");return}
+    var wr=window.prompt("اكتب f للصائم أو a لبعد الأكل","f");
+    if(wr===null) return;
+    var w=String(wr).trim().toLowerCase()==="f"?"f":"a";
+    var j=window.rafiqJudge(v,w);
+    D.collection("patients").doc(pid).collection("readings").add({v:v,w:w,c:j[0],t:j[2],d:new Date().toLocaleString("ar-LY"),ts:Date.now(),by:"doctor"})
+      .then(function(){window.alert("تمت إضافة القراءة.");if(A.currentUser)load(A.currentUser.uid)})
+      .catch(function(err){window.alert("تعذّر الحفظ: "+((err&&(err.code||err.message))||"unknown"))});
+  }
+  function editNote(pid){
+    var n=window.prompt("اكتب ملاحظة تظهر للمريض في تطبيقه (اتركها فارغة لحذفها):","");
+    if(n===null) return;
+    D.collection("patients").doc(pid).update({note:String(n).trim()})
+      .then(function(){window.alert("تم حفظ الملاحظة.")})
+      .catch(function(err){window.alert("تعذّر الحفظ: "+((err&&(err.code||err.message))||"unknown"))});
+  }
+  $("dTestJudge").onclick=function(){
+    var cases=[[50,"f"],[65,"a"],[100,"f"],[120,"a"],[160,"f"],[220,"a"],[320,"f"]];
+    var lines=cases.map(function(c){var j=window.rafiqJudge(c[0],c[1]);return c[0]+" mg/dL ("+(c[1]==="f"?"صائم":"بعد الأكل")+") ← "+j[2]+" ["+j[0]+"]"});
+    var el=$("dTestRes");el.className="res ok";el.hidden=false;
+    el.innerHTML="نتائج اختبار التقييم:<br>"+lines.map(esc).join("<br>");
+  };
+  // ===== مزامنة البيانات مع الطبيب (وجبات، نشاط، أخذ الدواء، الأدوية) =====
+  function sentGet(){try{return JSON.parse(localStorage.getItem("rafiq_sent"))||{}}catch(e){return{}}}
+  function sentSet(o){try{localStorage.setItem("rafiq_sent",JSON.stringify(o))}catch(e){}}
+  window.rafiqSyncAll=function(){
+    var L=getLink();
+    if(!L||!A.currentUser||A.currentUser.uid!==L.uid) return Promise.resolve(0);
+    var sent=sentGet(),items=[],meds=readMeds();
+    var daily=[];try{daily=JSON.parse(localStorage.getItem("rafiq_daily"))||[]}catch(e){}
+    daily.forEach(function(e){
+      if(!e||!e.id) return;
+      var key="d"+e.id; if(sent[key]) return;
+      items.push({key:key,doc:{k:String(e.k||""),n:String(e.n||""),q:String(e.q||""),m:Number(e.m)||0,day:String(e.day||""),t:String(e.t||""),ts:Number(e.id)}});
+    });
+    var tk={};try{tk=JSON.parse(localStorage.getItem("rafiq_taken"))||{}}catch(e){}
+    if(tk.day&&tk.ids){
+      Object.keys(tk.ids).forEach(function(mid){
+        var key="t"+tk.day+"_"+mid; if(sent[key]) return;
+        var med=meds.filter(function(m){return String(m.id)===String(mid)})[0];
+        items.push({key:key,doc:{k:"taken",mid:String(mid),dn:med?String(med.n||""):"",day:String(tk.day),ts:Date.now()}});
+      });
+    }
+    items=items.slice(0,200);
+    var mj=JSON.stringify(meds.map(function(m){return {n:m.n,t:m.t,o:m.o||""}}));
+    var p1=mj!==localStorage.getItem("rafiq_meds_sent")
+      ? window.rafiqSyncMeds(meds,false).then(function(){try{localStorage.setItem("rafiq_meds_sent",mj)}catch(e){}})
+      : Promise.resolve();
+    var p2=Promise.resolve();
+    if(items.length){
+      var b=D.batch();
+      items.forEach(function(it){b.set(D.collection("patients").doc(L.pid).collection("events").doc(it.key),it.doc)});
+      p2=b.commit().then(function(){items.forEach(function(it){sent[it.key]=1});sentSet(sent)});
+    }
+    return Promise.all([p1,p2]).then(function(){return items.length}).catch(function(e){
+      if(e&&e.code==="permission-denied"){setLink(null);showLinkStatus()}
+      console.error(e);return 0;
+    });
+  };
+  function loadNote(){
+    var L=getLink(); if(!L) return;
+    D.collection("patients").doc(L.pid).get({source:"server"}).then(function(d){
+      var n=d.exists&&d.data().note;
+      $("lkNote").textContent=n?"📝 ملاحظة من طبيبك: "+n:"";
+      $("lkNote").hidden=!n;
+    }).catch(function(){});
+  }
+  setInterval(function(){if(document.visibilityState!=="hidden"&&getLink())window.rafiqSyncAll()},30000);
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState==="visible"&&getLink()){window.rafiqSyncAll();loadNote()}
+  });
+  // حفظ حساب المريض المجهول ببريد وكلمة مرور
+  $("svBtn").onclick=function(){
+    var u=A.currentUser;
+    var em=$("svEmail").value.trim(),pw=$("svPass").value;
+    if(!u||!u.isAnonymous){msg("svMsg","bad","حسابك محفوظ بالفعل.");return}
+    if(!em||pw.length<6){msg("svMsg","bad","اكتب بريداً صحيحاً وكلمة مرور من 6 أحرف على الأقل.");return}
+    $("svBtn").disabled=true;
+    u.linkWithCredential(firebase.auth.EmailAuthProvider.credential(em,pw))
+      .then(function(){msg("svMsg","ok","تم حفظ الحساب بالبريد.");$("svPass").value=""})
+      .catch(function(e){
+        var mm={"auth/email-already-in-use":"هذا البريد مستخدم من قبل.","auth/invalid-email":"البريد غير صحيح.","auth/weak-password":"كلمة المرور ضعيفة (6 أحرف على الأقل).","auth/credential-already-in-use":"هذا البريد مرتبط بحساب آخر."};
+        msg("svMsg","bad",mm[e&&e.code]||("تعذّر الحفظ: "+((e&&(e.code||e.message))||"unknown")));
+      })
+      .then(function(){$("svBtn").disabled=false});
+  };
+
   $("dIn").onclick=function(){
     var em=$("dEmail").value.trim(),pw=$("dPass").value;
     msg("dErr","","");
@@ -833,6 +975,55 @@ render();
     var u=A.currentUser;
     if(!u) return;
     var pid=b.getAttribute("data-link"),nm=b.getAttribute("data-name")||"";
+    b.disabled=true;
+    function tryCode(n){
+      var c=String(Math.floor(100000+Math.random()*900000));
+      var batch=D.batch();
+      batch.set(D.collection("links").doc(c),{pid:pid,doctorId:u.uid,exp:Date.now()+3*24*3600*1000,used:false});
+      batch.update(D.collection("patients").doc(pid),{linkCode:c});
+      return batch.commit().then(function(){return c},function(err){
+        if(n<5&&err&&err.code==="permission-denied") return tryCode(n+1);
+        throw err;
+      });
+    }
+    tryCode(0).then(function(code){
+      window.alert("رمز ربط "+nm+": "+code+"\nصالح لمدة 3 أيام ولمرة واحدة. أعطه للمريض.");
+      load(u.uid);
+    }).catch(function(err){
+      b.disabled=false;
+      window.alert("تعذّر إنشاء الرمز: "+((err&&(err.code||err.message))||"unknown"));
+    });
+  }
+  // حذف جميع مرضى الطبيب بتأكيد مزدوج
+  $("dDelAll").onclick=function(){
+    var u=A.currentUser;
+    if(!u) return;
+    if(!window.confirm("حذف جميع المرضى في هذه القائمة؟")) return;
+    if(!window.confirm("تأكيد نهائي: لا يمكن التراجع عن حذف كل المرضى. هل تريد المتابعة؟")) return;
+    var btn=$("dDelAll");
+    btn.disabled=true;
+    D.collection("patients").where("doctorId","==",u.uid).get({source:"server"})
+      .then(function(snap){
+        var docs=snap.docs,chain=Promise.resolve();
+        for(var i=0;i<docs.length;i+=400){
+          (function(part){
+            chain=chain.then(function(){
+              var b=D.batch();
+              part.forEach(function(d){b.delete(d.ref)});
+              return b.commit();
+            });
+          })(docs.slice(i,i+400));
+        }
+        return chain.then(function(){return docs.length});
+      })
+      .then(function(n){window.alert("تم حذف "+n+" مريض.");load(u.uid)})
+      .catch(function(err){window.alert("تعذّر الحذف: "+((err&&(err.code||err.message))||"unknown"))})
+      .then(function(){btn.disabled=false});
+  };
+  function makeLink(b){
+    var u=A.currentUser;
+    if(!u) return;
+    var pid=b.getAttribute("data-link"),nm=b.getAttribute("data-name")||"";
     var code=String(Math.floor(100000+Math.random()*900000));
     var batch=D.batch();
     batch.set(D.collection("links").doc(code),{pid:pid,doctorId:u.uid,exp:Date.now()+3*24*3600*1000,used:false});
@@ -849,6 +1040,12 @@ render();
       });
   }
   $("dList").onclick=function(e){
+    var nt=e.target.closest?e.target.closest("[data-note]"):null;
+    if(nt){editNote(nt.getAttribute("data-note"));return}
+    var ad=e.target.closest?e.target.closest("[data-addr]"):null;
+    if(ad){addReading(ad.getAttribute("data-addr"));return}
+    var pb=e.target.closest?e.target.closest("[data-print]"):null;
+    if(pb){printBox(pb.closest(".det"));return}
     var lk=e.target.closest?e.target.closest("[data-link]"):null;
     if(lk){makeLink(lk);return}
     var dt=e.target.closest?e.target.closest("[data-det]"):null;
@@ -899,7 +1096,7 @@ render();
       .then(function(){$("dAdd").disabled=false});
   };
   A.onAuthStateChanged(function(u){
-    var doc=!!(u&&!u.isAnonymous);
+    var doc=!!(u&&!u.isAnonymous&&!getLink());
     $("dLogin").hidden=doc;
     $("dPanel").hidden=!doc;
     if(doc){$("dWho").textContent=u.email||"";load(u.uid)}
