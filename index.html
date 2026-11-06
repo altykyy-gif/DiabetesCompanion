@@ -84,12 +84,13 @@ details p{margin:0;padding:0 16px 14px}
 @media print{body>*:not(#printarea){display:none!important}body::before{display:none}#printarea{display:block!important;color:#000;background:#fff;font:14px/1.8 Cairo,Tahoma,Arial,sans-serif;padding:10px}#printarea table{width:100%;border-collapse:collapse}#printarea td,#printarea th{border:1px solid #888;padding:4px 8px}}
 @media (min-width:900px){body{--fs:20px}main{padding:28px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.grid .big{margin:0}}
 #detPrint{display:none}@media print{body.det-printing{height:auto!important;overflow:visible!important;position:static!important;background:#fff!important}body.det-printing>*:not(#detPrint){display:none!important}body.det-printing #detPrint{display:block!important;position:static!important;width:auto!important;height:auto!important;overflow:visible!important;background:#fff;color:#000;padding:12px;direction:rtl}body.det-printing #detPrint,body.det-printing #detPrint *{position:static!important;max-height:none!important;overflow:visible!important;transform:none!important}body.det-printing #detPrint .noprint{display:none!important}body.det-printing #detPrint .card,body.det-printing #detPrint .res{break-inside:avoid}}
+.bell{position:relative}.bn{position:absolute;top:-8px;left:-8px;background:#d00000;color:#fff;border-radius:999px;min-width:22px;height:22px;line-height:22px;padding:0 6px;font-size:13px;font-weight:800;text-align:center}
 </style>
 </head>
 <body>
 <header>
   <h1>رفيق السكري<small>مساعدك اليومي لمتابعة السكر</small></h1>
-  <div class="fs" aria-label="حجم الخط"><button id="fm" aria-label="تصغير الخط">أ-</button><button id="fp" aria-label="تكبير الخط">أ+</button></div>
+  <div class="fs" aria-label="حجم الخط"><button id="bell" class="bell" aria-label="الإشعارات">🔔<span id="bellN" class="bn" hidden>0</span></button><button id="fm" aria-label="تصغير الخط">أ-</button><button id="fp" aria-label="تكبير الخط">أ+</button></div>
 </header>
 
 <main>
@@ -643,7 +644,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v45";
+  var APP_VER="v46";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
@@ -1001,6 +1002,7 @@ render();
   }
   var lastNoteAt=0;
   function notifyPatient(title,body){
+    if(String(title).indexOf("اختبار")===-1&&window.rafiqUnreadAdd) window.rafiqUnreadAdd();
     if(!("Notification" in window)||Notification.permission!=="granted") return;
     var opts={body:String(body).slice(0,180),icon:"icons/icon-192.png",dir:"rtl",lang:"ar",tag:"rafiq-note"};
     var fallback=function(){try{new Notification(title,opts)}catch(e){console.error(e)}};
@@ -1256,6 +1258,28 @@ render();
     if(doc){$("dWho").textContent=u.email||"";load(u.uid);notifyBtnState();checkReplies()}
     else{if(unsub){unsub();unsub=null}$("dList").innerHTML="";$("dAddMsg").hidden=true}
   });
+})();
+</script>
+<script>
+(function(){
+  function count(){return Number(localStorage.getItem("rafiq_unread")||0)}
+  function render(){
+    var b=document.getElementById("bellN");if(!b)return;
+    var n=count();b.hidden=!n;b.textContent=n>99?"99+":String(n);
+  }
+  window.rafiqUnreadAdd=function(){localStorage.setItem("rafiq_unread",String(count()+1));render()};
+  var bell=document.getElementById("bell");
+  if(bell) bell.addEventListener("click",function(){
+    localStorage.setItem("rafiq_unread","0");render();
+    var more=document.querySelector('[data-go="more"]');
+    if(more) more.click();
+    setTimeout(function(){
+      var l=null;try{l=JSON.parse(localStorage.getItem("rafiq_link"))}catch(e){}
+      if(!l){var d=document.querySelector('[data-go="doctor"]');if(d) d.click();}
+    },300);
+  });
+  window.addEventListener("storage",render);
+  render();
 })();
 </script>
 </body>
