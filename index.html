@@ -634,7 +634,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v34";
+  var APP_VER="v35";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
@@ -823,25 +823,31 @@ render();
       box.innerHTML='<div class="res bad">تعذّر تحميل التفاصيل: '+esc((e&&(e.code||e.message))||"unknown")+'</div>';
     });
   }
+  // الطباعة تتم في صفحة مستقلة (تفتح في المتصفح) حتى تعمل من التطبيق المثبت والمتصفح معاً
   function printBox(box){
     if(!box) return;
     var card=box.closest(".card");
     var nm=card&&card.querySelector("b")?card.querySelector("b").textContent:"";
-    var wrap=document.createElement("div");
-    wrap.id="detPrint";
-    wrap.innerHTML='<h2>تقرير متابعة السكر – رفيق السكري</h2><p>المريض: '+esc(nm)+'<br>التاريخ: '+esc(new Date().toLocaleString("ar-LY"))+'</p>'+box.innerHTML;
-    document.body.appendChild(wrap);
-    // لا نحذف التقرير إلا بعد إغلاق نافذة الطباعة، لأن الهاتف يلتقط المعاينة بعد استدعاء print
-    document.body.classList.add("det-printing");
-    var cleanup=function(){
-      var w=document.getElementById("detPrint");
-      if(w) w.remove();
-      document.body.classList.remove("det-printing");
-      window.removeEventListener("afterprint",cleanup);
-    };
-    window.addEventListener("afterprint",cleanup);
-    setTimeout(cleanup,300000);
-    setTimeout(function(){window.print()},150);
+    var html='<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">'
+      +'<meta name="viewport" content="width=device-width,initial-scale=1"><title>تقرير '+esc(nm)+'</title>'
+      +'<style>body{font-family:Cairo,Tahoma,sans-serif;padding:16px;color:#000;background:#fff;line-height:1.6}'
+      +'h2{margin:0 0 8px}h3{margin:16px 0 6px;border-bottom:1px solid #ccc}'
+      +'.card,.res{border:1px solid #999;border-radius:8px;padding:8px;margin:6px 0}'
+      +'.noprint{display:none!important}@media print{.card,.res{break-inside:avoid}}</style></head><body>'
+      +'<h2>تقرير متابعة السكر – رفيق السكري</h2>'
+      +'<p>المريض: '+esc(nm)+'<br>التاريخ: '+esc(new Date().toLocaleString("ar-LY"))+'</p>'
+      +box.innerHTML
+      +'<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print()},400)};</scr'+'ipt>'
+      +'</body></html>';
+    var url=URL.createObjectURL(new Blob([html],{type:"text/html;charset=utf-8"}));
+    var w=window.open(url,"_blank");
+    if(!w){
+      // إن منعت المتصفح النافذة الجديدة: نزّل التقرير كملف وافتحه ثم اطبعه
+      var a=document.createElement("a");
+      a.href=url;a.download="تقرير-"+nm+".html";
+      document.body.appendChild(a);a.click();a.remove();
+    }
+    setTimeout(function(){URL.revokeObjectURL(url)},600000);
   }
   function addReading(pid){
     var raw=window.prompt("القيمة (mg/dL):","");
