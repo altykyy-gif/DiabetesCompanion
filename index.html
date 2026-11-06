@@ -416,13 +416,14 @@ window.rafiqLevel=function(rs){
  var l3=rs.slice(0,3),l5=rs.slice(0,5);
  if(l3.some(function(r){return r.v<54}))return{k:0,t:"خطر: هبوط شديد",c:"bad"};
  if(l3.some(function(r){return r.v>300}))return{k:0,t:"خطر: قراءة مرتفعة جداً",c:"bad"};
+ if(rs.length>=2&&rs[0].v>=300&&rs[1].v>=300)return{k:0,t:"خطر: سكر مستمر عند 300 أو أعلى",c:"bad"};
  if(l5.filter(function(r){return r.v<70}).length>=2)return{k:1,t:"تنبيه: هبوط متكرر",c:"bad"};
  if(l3.length===3&&l3.every(function(r){return r.v>=70&&judge(r.v,r.w==="f"?"f":"a")[0]!=="ok"}))return{k:2,t:"مرتفع في آخر القراءات",c:"warn"};
  return{k:3,t:"مستقر",c:"ok"}};
 function render(){var a=load(),h=document.getElementById("hist");
  if(!a.length){h.innerHTML="<p>لا توجد قراءات بعد. اكتب أول قراءة فوق 👆</p>";return}
  h.innerHTML=a.slice().reverse().slice(0,15).map(function(r,i){var idx=a.length-1-i;
-  return '<div class="row"><div><b>'+r.v+'</b> mg/dL<br><span class="note">'+(r.w==="f"?"صائم":"بعد الأكل")+' – '+r.d+'</span></div><span class="pill '+r.c+'">'+r.t+'</span><button class="del" data-i="'+idx+'" aria-label="احذف القراءة">حذف</button></div>'}).join("");
+  return '<div class="row"><div><b>'+r.v+'</b> mg/dL<br><span class="note">'+(r.w==="f"?"صائم":"بعد الأكل")+' – '+esc(r.d)+'</span></div><span class="pill '+esc(r.c)+'">'+esc(r.t)+'</span><button class="del" data-i="'+idx+'" aria-label="احذف القراءة">حذف</button></div>'}).join("");
  h.querySelectorAll(".del").forEach(function(b){b.onclick=function(){var x=load();x.splice(+b.dataset.i,1);store(x);render()}})}
 document.getElementById("save").onclick=function(){
  var v=parseInt(document.getElementById("val").value,10),w=document.getElementById("when").value,r=document.getElementById("res");
@@ -458,7 +459,7 @@ function render(){
  else box.innerHTML=ms.map(function(m){var done=tk.ids[m.id],isLate=!done&&mins(m.t)<=n;
   var st=done?'<span class="pill ok">تم ✅</span>':isLate?'<span class="pill bad">فات موعده</span>':'<span class="pill warn">قادم</span>';
   return '<div class="dose"><div class="nm">'+esc(m.n)+'<br><span class="note">'+fmt(m.t)+(m.o?" – "+esc(m.o):"")+'</span></div>'+st+
-   (done?"":'<button class="tk" data-t="'+m.id+'">أخذتُ الدواء</button>')+'<button class="del" data-d="'+m.id+'" aria-label="احذف الدواء">حذف</button></div>'}).join("");
+   (done?"":'<button class="tk" data-t="'+esc(m.id)+'">أخذتُ الدواء</button>')+'<button class="del" data-d="'+esc(m.id)+'" aria-label="احذف الدواء">حذف</button></div>'}).join("");
  box.querySelectorAll("[data-t]").forEach(function(b){b.onclick=function(){var t=taken();t.ids[b.dataset.t]=1;p(TK,t);render();banner()}});
  box.querySelectorAll("[data-d]").forEach(function(b){b.onclick=function(){if(confirm("حذف هذا الدواء؟")){p(MK,g(MK,[]).filter(function(m){return m.id!=b.dataset.d}));render();banner()}}});
 }
@@ -585,7 +586,18 @@ document.getElementById("bimp").onchange=function(ev){var f=ev.target.files[0];i
   if(d.rafiq_log&&!(Array.isArray(d.rafiq_log)&&d.rafiq_log.every(ok)))throw 0;
   if(d.rafiq_meds&&!(Array.isArray(d.rafiq_meds)&&d.rafiq_meds.every(function(m){return m&&m.n&&m.t})))throw 0;
   if(!confirm("سيتم استبدال بياناتك الحالية بالنسخة المحفوظة. هل تريد المتابعة؟")){ev.target.value="";return}
-  KEYS.forEach(function(k){if(k in d)localStorage.setItem(k,JSON.stringify(d[k]))});
+  function S(x,n){return String(x==null?"":x).replace(/[<>&"'`\\]/g,"").slice(0,n||100)}
+  function N(x){x=Number(x);return isFinite(x)?x:0}
+  function Id(x){return String(x==null?"":x).replace(/[^\w-]/g,"").slice(0,50)}
+  var C={
+   rafiq_log:function(a){return a.map(function(r){return{v:N(r.v),w:r.w==="f"?"f":"a",c:["ok","warn","bad"].indexOf(r.c)>-1?r.c:"ok",t:S(r.t,50),d:S(r.d,50),ts:N(r.ts)}})},
+   rafiq_meds:function(a){return a.map(function(m){return{id:Id(m.id)||String(Date.now()),n:S(m.n),t:S(m.t,5),o:S(m.o)}})},
+   rafiq_daily:function(a){return(Array.isArray(a)?a:[]).filter(Boolean).map(function(e){return{id:N(e.id),day:S(e.day,20),t:S(e.t,50),k:e.k==="a"?"a":"m",n:S(e.n),q:S(e.q),m:N(e.m)}})},
+   rafiq_taken:function(o){var r={day:S(o&&o.day,20),ids:{}};if(o&&o.ids&&typeof o.ids==="object")Object.keys(o.ids).forEach(function(k){if(Id(k))r.ids[Id(k)]=1});return r},
+   rafiq_rem:function(x){return typeof x==="object"&&x?JSON.parse(JSON.stringify(x,function(k,v){return typeof v==="string"?S(v):v})):S(x)},
+   rafiq_fs:function(x){return N(x)}
+  };
+  KEYS.forEach(function(k){if(k in d)localStorage.setItem(k,JSON.stringify(C[k]?C[k](d[k]):d[k]))});
   say("ok","تم استرجاع بياناتك ✅");setTimeout(function(){location.reload()},900)}catch(e){say("bad","الملف غير صالح. اختر ملف نسخة من «رفيق السكري».")}};
  fr.readAsText(f)};
 })();
@@ -608,7 +620,7 @@ function render(){
  box.innerHTML=a.length?a.slice().reverse().map(function(r){var i=g().indexOf(r);return ""}).join(""):"<p>لم تسجّل شيئاً اليوم بعد.</p>";
  if(a.length){var all=g();box.innerHTML=a.slice().reverse().map(function(r){
   var idx=all.findIndex(function(x){return x.id===r.id});
-  return '<div class="row"><div>'+(r.k==="m"?"🍽️ <b>"+esc(r.n)+"</b> – "+esc(r.q):"🚶 <b>"+esc(r.n)+"</b> – "+r.m+" دقيقة")+'<br><span class="note">'+esc(r.t)+'</span></div><button class="del" data-i="'+idx+'" aria-label="احذف">حذف</button></div>'}).join("");
+  return '<div class="row"><div>'+(r.k==="m"?"🍽️ <b>"+esc(r.n)+"</b> – "+esc(r.q):"🚶 <b>"+esc(r.n)+"</b> – "+(+r.m)+" دقيقة")+'<br><span class="note">'+esc(r.t)+'</span></div><button class="del" data-i="'+idx+'" aria-label="احذف">حذف</button></div>'}).join("");
   box.querySelectorAll(".del").forEach(function(b){b.onclick=function(){var x=g();x.splice(+b.dataset.i,1);p(x);render()}})}
  var s=document.getElementById("wsum"),c=w>=30?"ok":"warn";
  s.innerHTML='<div class="res '+c+'">حركتك اليوم: '+w+' دقيقة'+(w>=30?" 👏 أحسنت، حققت الهدف!":" من 30. كل دقيقة تفيد.")+'</div>'}
@@ -647,7 +659,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v48";
+  var APP_VER="v49";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
@@ -727,7 +739,7 @@ render();
         return b.commit().then(function(){
           setLink({pid:L.pid,uid:u.uid});
           var old=[];try{old=JSON.parse(localStorage.getItem("rafiq_log"))||[]}catch(e){}
-          try{localStorage.setItem("rafiq_rsync","1")}catch(e){}
+          try{localStorage.setItem("rafiq_rsync2","1")}catch(e){}
           var mm=[];try{mm=JSON.parse(localStorage.getItem("rafiq_meds"))||[]}catch(e){}
           window.rafiqSyncMeds(mm);
         });
@@ -961,17 +973,12 @@ render();
   // ===== مزامنة البيانات مع الطبيب (وجبات، نشاط، أخذ الدواء، الأدوية) =====
   function sentGet(){try{return JSON.parse(localStorage.getItem("rafiq_sent"))||{}}catch(e){return{}}}
   function sentSet(o){try{localStorage.setItem("rafiq_sent",JSON.stringify(o))}catch(e){}}
-  window.rafiqSyncAll=function(){
+  function syncAllInner(){
     var L=getLink();
     if(!L||!A.currentUser||A.currentUser.uid!==L.uid) return Promise.resolve({n:0,ok:false});
     var sent=sentGet(),items=[],meds=readMeds();
     // القراءات: كل قراءة بمعرّف ثابت r+ts، فإعادة الإرسال لا تكرّرها
     var rl=[];try{rl=JSON.parse(localStorage.getItem("rafiq_log"))||[]}catch(e){}
-    if(!localStorage.getItem("rafiq_rsync")){
-      // أول تشغيل بعد التحديث: القراءات الموجودة أُرسلت سابقاً، فلا تُعاد
-      rl.forEach(function(r){if(r&&r.ts)sent["r"+r.ts]=1});sentSet(sent);
-      try{localStorage.setItem("rafiq_rsync","1")}catch(e){}
-    }
     var reads=[];
     rl.forEach(function(r){
       if(!r||!r.ts||!isFinite(Number(r.v))) return;
@@ -1012,6 +1019,17 @@ render();
       });
     }
     return Promise.all([p1,p2]).then(function(r){return {n:items.length+reads.length,ok:!!(r[0]&&r[1])}});
+  };
+  window.rafiqSyncAll=function(){
+    var L=getLink();
+    if(!L||!A.currentUser||A.currentUser.uid!==L.uid||localStorage.getItem("rafiq_rsync2")) return syncAllInner();
+    // أول تشغيل بعد الترقية: لا تُعلَّم قراءة كمرسلة إلا إذا وُجدت فعلاً عند الطبيب
+    return withTimeout(D.collection("patients").doc(L.pid).collection("readings").get({source:"server"}),15000).then(function(snap){
+      var sent=sentGet();Object.keys(sent).forEach(function(k){if(k.charAt(0)==="r")delete sent[k]});
+      snap.forEach(function(d){var t=d.data().ts;if(t)sent["r"+t]=1});
+      sentSet(sent);try{localStorage.setItem("rafiq_rsync2","1")}catch(e){}
+      return syncAllInner();
+    }).catch(function(e){console.error(e);return {n:0,ok:false}});
   };
   // يقرأ حالة الربط من الخادم: إن فُك الربط من جهة الطبيب يُحدَّث الهاتف فوراً
   function unlinkedHere(text){
@@ -1271,12 +1289,22 @@ render();
   setInterval(function(){if(document.visibilityState!=="hidden")checkReplies()},120000);
   document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible")checkReplies()});
   A.onAuthStateChanged(function(u){
+    if(u&&!u.isAnonymous&&!getLink()){
+      D.collection("patients").where("patientUid","==",u.uid).limit(1).get().then(function(q){
+        if(!q.empty){setLink({pid:q.docs[0].id,uid:u.uid});try{localStorage.removeItem("rafiq_rsync2")}catch(e){}showLinkStatus();loadNote();window.rafiqSyncAll();location.hash="doctor"}
+        else if(!getLink()){finish(u)}
+      }).catch(function(){finish(u)});
+      return;
+    }
+    finish(u);
+  });
+  function finish(u){
     var doc=!!(u&&!u.isAnonymous&&!getLink());
     $("dLogin").hidden=doc;
     $("dPanel").hidden=!doc;
     if(doc){$("dWho").textContent=u.email||"";load(u.uid);notifyBtnState();checkReplies()}
     else{if(unsub){unsub();unsub=null}$("dList").innerHTML="";$("dAddMsg").hidden=true}
-  });
+  }
 })();
 </script>
 <script>
