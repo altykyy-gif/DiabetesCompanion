@@ -271,6 +271,11 @@ details p{margin:0;padding:0 16px 14px}
     <div id="lkMsg" class="res" hidden></div>
     <p id="lkStatus" class="note"></p>
     <div id="lkNote" class="card" hidden></div>
+    <div id="lkReplyBox" class="card" hidden>
+      <label for="lkReplyTxt">ردّك على الملاحظة (يصل إلى طبيبك):</label>
+      <textarea id="lkReplyTxt" rows="3" maxlength="500" placeholder="اكتب ردك هنا..."></textarea>
+      <button class="go sec" id="lkReplyBtn">إرسال الرد</button>
+    </div>
     <p id="lkCheck" class="note" dir="ltr"></p>
     <div id="svCard" hidden>
       <h3>حفظ حسابك</h3>
@@ -321,6 +326,7 @@ details p{margin:0;padding:0 16px 14px}
       <div id="dAddMsg" class="res" hidden></div>
     </div>
     <h3>المرضى (الأخطر أولاً)</h3>
+    <button class="go sec" id="dNotifyBtn" hidden style="margin-top:10px">🔔 تفعيل إشعارات ردود المرضى</button>
     <button class="go sec" id="dRefresh">🔄 تحديث القائمة</button>
     <button class="go sec" id="dDelAll" style="margin-top:10px">🗑️ حذف كل المرضى</button>
     <div id="dAlert" class="res bad" hidden></div>
@@ -637,7 +643,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v42";
+  var APP_VER="v44";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
@@ -757,6 +763,17 @@ render();
         if(manual)msg("lkMsg","bad","تعذّر إرسال الأدوية: "+((e&&(e.code||e.message))||"unknown"));
       });
   };
+  $("lkReplyBtn").onclick=function(){
+    var L=getLink();
+    var t=$("lkReplyTxt").value.trim();
+    if(!L){msg("lkMsg","bad","أنت غير مرتبط بطبيب بعد.");return}
+    if(!t){msg("lkMsg","bad","اكتب ردك أولاً.");return}
+    $("lkReplyBtn").disabled=true;
+    D.collection("patients").doc(L.pid).update({patientReply:{text:t.slice(0,500),ts:Date.now(),noteAt:lastNoteAt}})
+      .then(function(){$("lkReplyTxt").value="";msg("lkMsg","ok","تم إرسال ردك إلى طبيبك.")})
+      .catch(function(e){msg("lkMsg","bad","تعذّر إرسال الرد: "+((e&&(e.code||e.message))||"unknown"))})
+      .then(function(){$("lkReplyBtn").disabled=false});
+  };
   $("lkTestNotif").onclick=function(){
     notifyPatient("اختبار الإشعارات","إذا ظهر هذا الإشعار فالإعداد سليم.");
     msg("lkMsg","ok","أُرسل إشعار تجريبي. إن لم يظهر فتحقق من إعدادات الإشعارات في الهاتف.");
@@ -830,6 +847,7 @@ render();
       h+="<h3>سجل الربط</h3>";
       h+=hist.length?hist.map(function(x){return '<div style="margin:4px 0">'+(x.a==="link"?"🔗 ربط":"🔓 فك ربط")+' ('+(x.by==="doctor"?"من الطبيب":"من المريض")+') – '+esc(new Date(x.ts).toLocaleString("ar-LY"))+'</div>'}).join(""):"<p>لا يوجد سجل بعد.</p>";
       if(p.note) h+='<div class="card" style="margin-top:10px"><b>ملاحظتك الحالية للمريض:</b> '+esc(p.note)+'</div>';
+      if(p.patientReply&&p.patientReply.text) h+='<div class="card" style="margin-top:10px"><b>ردّ المريض على الملاحظة:</b> '+esc(p.patientReply.text)+'<br><small dir="ltr">'+esc(new Date(p.patientReply.ts).toLocaleString("ar-LY"))+'</small></div>';
       h+='<div class="noprint" style="margin-top:12px">';
       h+='<button class="go sec" data-note="'+esc(pid)+'">📝 كتابة ملاحظة للمريض</button>';
       h+='<button class="go sec" data-addr="'+esc(pid)+'" style="margin-top:8px">➕ إضافة قراءة يدوياً</button>';
@@ -981,6 +999,7 @@ render();
     $("lkNote").hidden=true;$("lkNote").textContent="";
     msg("lkMsg","warn",text||"تم فك الربط من جهة الطبيب.");
   }
+  var lastNoteAt=0;
   function notifyPatient(title,body){
     if(!("Notification" in window)||Notification.permission!=="granted") return;
     var opts={body:String(body).slice(0,180),icon:"icons/icon-192.png",dir:"rtl",lang:"ar",tag:"rafiq-note"};
@@ -1012,6 +1031,8 @@ render();
       var data=d.exists?d.data():null;
       if(!data||data.patientUid!==L.uid){unlinkedHere();return}
       var n=data.note;
+      lastNoteAt=Number(data.noteAt)||0;
+      $("lkReplyBox").hidden=!n;
       var changedNow=checkNoteNotify(n,data.noteAt||0);
       if(changedNow) msg("lkMsg","ok","وصلت ملاحظة جديدة من طبيبك.");
       var at=Number(data.noteAt)||0;
@@ -1195,11 +1216,44 @@ render();
       .catch(function(err){msg("dAddMsg","bad","تعذّر الحفظ: "+((err&&(err.code||err.message))||"unknown"))})
       .then(function(){$("dAdd").disabled=false});
   };
+  // ===== إشعارات الطبيب عند رد المريض =====
+  function checkReplies(){
+    var u=A.currentUser;
+    if(!u||u.isAnonymous||getLink()) return;
+    var first=!localStorage.getItem("rafiq_reply_init");
+    D.collection("patients").where("doctorId","==",u.uid).get({source:"server"}).then(function(snap){
+      snap.forEach(function(d){
+        var x=d.data(),r=x.patientReply;
+        if(!r||!r.ts) return;
+        var key="rafiq_reply_seen_"+d.id;
+        var raw=localStorage.getItem(key);
+        if(raw===null){
+          localStorage.setItem(key,String(r.ts));
+          if(!first) notifyPatient("رد جديد من مريض: "+(x.name||""),r.text||"");
+          return;
+        }
+        if(r.ts>Number(raw)){
+          notifyPatient("رد جديد من مريض: "+(x.name||""),r.text||"");
+          localStorage.setItem(key,String(r.ts));
+        }
+      });
+      localStorage.setItem("rafiq_reply_init","1");
+    }).catch(function(e){console.error("checkReplies:",e)});
+  }
+  function notifyBtnState(){
+    $("dNotifyBtn").hidden=!("Notification" in window)||Notification.permission==="granted";
+  }
+  $("dNotifyBtn").onclick=function(){
+    if(!("Notification" in window)) return;
+    Notification.requestPermission().then(function(){notifyBtnState();window.alert(Notification.permission==="granted"?"تم تفعيل الإشعارات.":"لم تُفعَّل الإشعارات.")});
+  };
+  setInterval(function(){if(document.visibilityState!=="hidden")checkReplies()},120000);
+  document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible")checkReplies()});
   A.onAuthStateChanged(function(u){
     var doc=!!(u&&!u.isAnonymous&&!getLink());
     $("dLogin").hidden=doc;
     $("dPanel").hidden=!doc;
-    if(doc){$("dWho").textContent=u.email||"";load(u.uid)}
+    if(doc){$("dWho").textContent=u.email||"";load(u.uid);notifyBtnState();checkReplies()}
     else{if(unsub){unsub();unsub=null}$("dList").innerHTML="";$("dAddMsg").hidden=true}
   });
 })();
