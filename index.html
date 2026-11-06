@@ -410,6 +410,15 @@ function judge(v,w){
  }
  if(v<=300)return["warn","السكر مرتفع. اشرب الماء، وراجع طبيبك قريباً.","مرتفع"];
  return["bad","السكر مرتفع جداً. اشرب الماء واتصل بطبيبك الآن. إذا كان معه قيء أو نعاس شديد اذهب للطوارئ.","مرتفع جداً"]}
+// تصنيف الخطورة الموحَّد: يستخدمه التطبيق ولوحة الطبيب (rs: القراءات الأحدث أولاً، كل واحدة {v,w})
+window.rafiqLevel=function(rs){
+ if(!rs||!rs.length)return{k:4,t:"لا قراءات بعد",c:""};
+ var l3=rs.slice(0,3),l5=rs.slice(0,5);
+ if(l3.some(function(r){return r.v<54}))return{k:0,t:"خطر: هبوط شديد",c:"bad"};
+ if(l3.some(function(r){return r.v>300}))return{k:0,t:"خطر: قراءة مرتفعة جداً",c:"bad"};
+ if(l5.filter(function(r){return r.v<70}).length>=2)return{k:1,t:"تنبيه: هبوط متكرر",c:"bad"};
+ if(l3.length===3&&l3.every(function(r){return r.v>=70&&judge(r.v,r.w==="f"?"f":"a")[0]!=="ok"}))return{k:2,t:"مرتفع في آخر القراءات",c:"warn"};
+ return{k:3,t:"مستقر",c:"ok"}};
 function render(){var a=load(),h=document.getElementById("hist");
  if(!a.length){h.innerHTML="<p>لا توجد قراءات بعد. اكتب أول قراءة فوق 👆</p>";return}
  h.innerHTML=a.slice().reverse().slice(0,15).map(function(r,i){var idx=a.length-1-i;
@@ -530,6 +539,7 @@ function insights(){
 function risk(){
  var a=logs(),l3=a.slice(-3),l5=a.slice(-5),m=[];
  function hi(r){return r.v>=70&&r.c!=="ok"}
+ if(l3.some(function(r){return r.v<54}))m.push(["bad","⚠️ ظهرت قراءة منخفضة جداً (أقل من 54). عالج الهبوط فوراً، وإن لم تتحسن اتصل بالإسعاف وأخبر طبيبك."]);
  if(l3.some(function(r){return r.v>300}))m.push(["bad","⚠️ ظهرت قراءة أعلى من 300 مؤخراً. اشرب الماء واتصل بطبيبك اليوم."]);
  if(l5.filter(function(r){return r.v<70}).length>=2)m.push(["bad","⚠️ تكرر نزول السكر في قراءاتك الأخيرة. لا تتأخر عن وجباتك، وأخبر طبيبك قريباً."]);
  if(l3.length===3&&l3.every(hi))m.push(["warn","⚠️ آخر 3 قراءات كلها أعلى من المطلوب. راجع أكلك وموعد دوائك، وأخبر طبيبك في أقرب موعد."]);
@@ -629,14 +639,7 @@ render();
   function errText(e){return ERR[e&&e.code]||"حدث خطأ، حاول مرة أخرى."}
   function msg(id,c,t){var el=$(id);el.className="res "+c;el.textContent=t;el.hidden=!t}
   // تصنيف الخطورة من آخر القراءات (الأحدث أولاً) بنفس قواعد التطبيق
-  function level(vs){
-    if(!vs.length) return {k:4,t:"لا قراءات بعد",c:""};
-    var last3=vs.slice(0,3);
-    if(last3.some(function(v){return v>300})) return {k:0,t:"خطر: قراءة مرتفعة جداً",c:"bad"};
-    if(vs.slice(0,5).filter(function(v){return v<70}).length>=2) return {k:1,t:"تنبيه: هبوط متكرر",c:"bad"};
-    if(last3.length===3&&last3.every(function(v){return v>180})) return {k:2,t:"مرتفع في آخر القراءات",c:"warn"};
-    return {k:3,t:"مستقر",c:"ok"};
-  }
+  function level(rs){return window.rafiqLevel(rs)}
   function withTimeout(p,ms){
     return new Promise(function(res,rej){
       var t=setTimeout(function(){rej(new Error("timeout"))},ms);
@@ -644,7 +647,7 @@ render();
     });
   }
   var unsub=null;
-  var APP_VER="v46";
+  var APP_VER="v47";
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
@@ -678,9 +681,9 @@ render();
             D.collection("patients").doc(r.id).collection("readings").orderBy("ts","desc").limit(5).get({source:"server"}),
             8000
           ).then(function(rs){
-            var vs=[];rs.forEach(function(x){vs.push(Number(x.data().v))});
+            var vs=[];rs.forEach(function(x){var q=x.data();if(isFinite(Number(q.v)))vs.push({v:Number(q.v),w:q.w})});
             r.lv=level(vs);r.last=rs.docs.length?rs.docs[0].data():null;
-          }).catch(function(){r.lv=level([])});
+          }).catch(function(){r.lv={k:2.5,t:"تعذّر تحميل القراءات، حدّث القائمة",c:"warn"}});
         })).then(function(){
           rows.sort(function(a,b){return (a.lv.k-b.lv.k)||(a.name<b.name?-1:a.name>b.name?1:0)});
           draw(rows);
@@ -704,13 +707,7 @@ render();
     $("lkNotifyBtn").hidden=!L||!("Notification" in window)||Notification.permission==="granted";
     $("lkTestNotif").hidden=!L||!("Notification" in window)||Notification.permission!=="granted";
   }
-  window.rafiqPush=function(r){
-    var L=getLink();
-    if(!L||!A.currentUser||A.currentUser.uid!==L.uid) return;
-    D.collection("patients").doc(L.pid).collection("readings")
-      .add({v:r.v,w:r.w,c:r.c,t:r.t,d:r.d,ts:r.ts})
-      .catch(function(e){if(e&&e.code==="permission-denied"){setLink(null);showLinkStatus()}console.error(e)});
-  };
+  window.rafiqPush=function(){return window.rafiqSyncAll()};
   $("lkBtn").onclick=function(){
     var code=$("lkCode").value.trim();
     if(!$("lkConsent").checked){msg("lkMsg","bad","يجب الموافقة أولاً على إرسال بياناتك إلى طبيبك.");return}
@@ -730,7 +727,7 @@ render();
         return b.commit().then(function(){
           setLink({pid:L.pid,uid:u.uid});
           var old=[];try{old=JSON.parse(localStorage.getItem("rafiq_log"))||[]}catch(e){}
-          old.filter(function(r){return r&&r.ts}).slice(-15).forEach(function(r){window.rafiqPush(r)});
+          try{localStorage.setItem("rafiq_rsync","1")}catch(e){}
           var mm=[];try{mm=JSON.parse(localStorage.getItem("rafiq_meds"))||[]}catch(e){}
           window.rafiqSyncMeds(mm);
         });
@@ -752,16 +749,17 @@ render();
   // إرسال الأدوية إلى ملف المريض عند الطبيب
   window.rafiqSyncMeds=function(list,manual){
     var L=getLink();
-    if(!L){if(manual)msg("lkMsg","bad","أنت غير مرتبط بطبيب بعد.");return Promise.resolve()}
-    if(!A.currentUser||A.currentUser.uid!==L.uid){if(manual)msg("lkMsg","warn","جارٍ تجهيز الاتصال، حاول بعد لحظة.");return Promise.resolve()}
-    var arr=(Array.isArray(list)?list:[]).map(function(m){return {n:String(m.n||""),t:String(m.t||""),o:String(m.o||"")}});
+    if(!L){if(manual)msg("lkMsg","bad","أنت غير مرتبط بطبيب بعد.");return Promise.resolve(false)}
+    if(!A.currentUser||A.currentUser.uid!==L.uid){if(manual)msg("lkMsg","warn","جارٍ تجهيز الاتصال، حاول بعد لحظة.");return Promise.resolve(false)}
+    var arr=(Array.isArray(list)?list:[]).map(function(m){return {n:String(m.n||"").slice(0,100),t:String(m.t||"").slice(0,20),o:String(m.o||"").slice(0,100)}}).slice(0,30);
     if(manual)msg("lkMsg","warn","جارٍ إرسال الأدوية…");
     return withTimeout(D.collection("patients").doc(L.pid).update({meds:arr}),12000)
-      .then(function(){if(manual)msg("lkMsg","ok","تم إرسال "+arr.length+" دواء إلى طبيبك.")})
+      .then(function(){if(manual)msg("lkMsg","ok","تم إرسال "+arr.length+" دواء إلى طبيبك.");return true})
       .catch(function(e){
-        if(e&&e.code==="permission-denied"){setLink(null);showLinkStatus()}
+        if(e&&e.code==="permission-denied")loadNote();
         console.error(e);
         if(manual)msg("lkMsg","bad","تعذّر إرسال الأدوية: "+((e&&(e.code||e.message))||"unknown"));
+        return false;
       });
   };
   $("lkReplyBtn").onclick=function(){
@@ -789,7 +787,10 @@ render();
   $("lkSyncMeds").onclick=function(){
     if(!getLink()){msg("lkMsg","bad","أنت غير مرتبط بطبيب بعد.");return}
     msg("lkMsg","warn","جارٍ المزامنة…");
-    window.rafiqSyncAll().then(function(n){msg("lkMsg","ok","تمت المزامنة مع طبيبك"+(n?" ("+n+" عنصر جديد)":"")+".");loadNote()});
+    window.rafiqSyncAll().then(function(r){
+      if(r.ok)msg("lkMsg","ok","تمت المزامنة مع طبيبك"+(r.n?" ("+r.n+" عنصر جديد)":"")+".");
+      else msg("lkMsg","bad","لم تكتمل المزامنة. تأكد من الإنترنت ثم أعد المحاولة، وما لم يُرسل سيبقى محفوظاً عندك.");
+      loadNote()});
   };
   // عند كل تحميل للصفحة بعد جاهزية الحساب، أرسل الأدوية الحالية
   A.onAuthStateChanged(function(u){
@@ -962,37 +963,55 @@ render();
   function sentSet(o){try{localStorage.setItem("rafiq_sent",JSON.stringify(o))}catch(e){}}
   window.rafiqSyncAll=function(){
     var L=getLink();
-    if(!L||!A.currentUser||A.currentUser.uid!==L.uid) return Promise.resolve(0);
+    if(!L||!A.currentUser||A.currentUser.uid!==L.uid) return Promise.resolve({n:0,ok:false});
     var sent=sentGet(),items=[],meds=readMeds();
+    // القراءات: كل قراءة بمعرّف ثابت r+ts، فإعادة الإرسال لا تكرّرها
+    var rl=[];try{rl=JSON.parse(localStorage.getItem("rafiq_log"))||[]}catch(e){}
+    if(!localStorage.getItem("rafiq_rsync")){
+      // أول تشغيل بعد التحديث: القراءات الموجودة أُرسلت سابقاً، فلا تُعاد
+      rl.forEach(function(r){if(r&&r.ts)sent["r"+r.ts]=1});sentSet(sent);
+      try{localStorage.setItem("rafiq_rsync","1")}catch(e){}
+    }
+    var reads=[];
+    rl.forEach(function(r){
+      if(!r||!r.ts||!isFinite(Number(r.v))) return;
+      var key="r"+r.ts; if(sent[key]) return;
+      reads.push({key:key,doc:{v:Number(r.v),w:r.w==="f"?"f":"a",c:String(r.c||""),t:String(r.t||"").slice(0,50),d:String(r.d||"").slice(0,50),ts:Number(r.ts)}});
+    });
+    reads=reads.slice(-100);
     var daily=[];try{daily=JSON.parse(localStorage.getItem("rafiq_daily"))||[]}catch(e){}
     daily.forEach(function(e){
       if(!e||!e.id) return;
       var key="d"+e.id; if(sent[key]) return;
-      items.push({key:key,doc:{k:String(e.k||""),n:String(e.n||""),q:String(e.q||""),m:Number(e.m)||0,day:String(e.day||""),t:String(e.t||""),ts:Number(e.id)}});
+      items.push({key:key,doc:{k:String(e.k||""),n:String(e.n||"").slice(0,100),q:String(e.q||"").slice(0,100),m:Number(e.m)||0,day:String(e.day||""),t:String(e.t||"").slice(0,50),ts:Number(e.id)}});
     });
     var tk={};try{tk=JSON.parse(localStorage.getItem("rafiq_taken"))||{}}catch(e){}
     if(tk.day&&tk.ids){
       Object.keys(tk.ids).forEach(function(mid){
         var key="t"+tk.day+"_"+mid; if(sent[key]) return;
         var med=meds.filter(function(m){return String(m.id)===String(mid)})[0];
-        items.push({key:key,doc:{k:"taken",mid:String(mid),dn:med?String(med.n||""):"",day:String(tk.day),ts:Date.now()}});
+        items.push({key:key,doc:{k:"taken",mid:String(mid),dn:med?String(med.n||"").slice(0,100):"",day:String(tk.day),ts:Date.now()}});
       });
     }
     items=items.slice(0,200);
     var mj=JSON.stringify(meds.map(function(m){return {n:m.n,t:m.t,o:m.o||""}}));
+    // الأدوية: لا تُعلَّم «مرسلة» إلا بعد نجاح الإرسال فعلاً
     var p1=mj!==localStorage.getItem("rafiq_meds_sent")
-      ? window.rafiqSyncMeds(meds,false).then(function(){try{localStorage.setItem("rafiq_meds_sent",mj)}catch(e){}})
-      : Promise.resolve();
-    var p2=Promise.resolve();
-    if(items.length){
-      var b=D.batch();
-      items.forEach(function(it){b.set(D.collection("patients").doc(L.pid).collection("events").doc(it.key),it.doc)});
-      p2=b.commit().then(function(){items.forEach(function(it){sent[it.key]=1});sentSet(sent)});
+      ? window.rafiqSyncMeds(meds,false).then(function(ok){if(ok){try{localStorage.setItem("rafiq_meds_sent",mj)}catch(e){}}return ok})
+      : Promise.resolve(true);
+    var p2=Promise.resolve(true);
+    if(items.length||reads.length){
+      var b=D.batch(),pr=D.collection("patients").doc(L.pid);
+      reads.forEach(function(it){b.set(pr.collection("readings").doc(it.key),it.doc)});
+      items.forEach(function(it){b.set(pr.collection("events").doc(it.key),it.doc)});
+      p2=withTimeout(b.commit(),15000).then(function(){
+        reads.concat(items).forEach(function(it){sent[it.key]=1});sentSet(sent);return true;
+      }).catch(function(e){
+        if(e&&e.code==="permission-denied")loadNote();
+        console.error(e);return false;
+      });
     }
-    return Promise.all([p1,p2]).then(function(){return items.length}).catch(function(e){
-      if(e&&e.code==="permission-denied"){setLink(null);showLinkStatus()}
-      console.error(e);return 0;
-    });
+    return Promise.all([p1,p2]).then(function(r){return {n:items.length+reads.length,ok:!!(r[0]&&r[1])}});
   };
   // يقرأ حالة الربط من الخادم: إن فُك الربط من جهة الطبيب يُحدَّث الهاتف فوراً
   function unlinkedHere(text){
