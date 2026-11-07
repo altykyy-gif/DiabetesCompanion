@@ -85,6 +85,16 @@ details p{margin:0;padding:0 16px 14px}
 @media (min-width:900px){body{--fs:20px}main{padding:28px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.grid .big{margin:0}}
 #detPrint{display:none}@media print{body.det-printing{height:auto!important;overflow:visible!important;position:static!important;background:#fff!important}body.det-printing>*:not(#detPrint){display:none!important}body.det-printing #detPrint{display:block!important;position:static!important;width:auto!important;height:auto!important;overflow:visible!important;background:#fff;color:#000;padding:12px;direction:rtl}body.det-printing #detPrint,body.det-printing #detPrint *{position:static!important;max-height:none!important;overflow:visible!important;transform:none!important}body.det-printing #detPrint .noprint{display:none!important}body.det-printing #detPrint .card,body.det-printing #detPrint .res{break-inside:avoid}}
 .bell{position:relative}.bn{position:absolute;top:-8px;left:-8px;background:#d00000;color:#fff;border-radius:999px;min-width:22px;height:22px;line-height:22px;padding:0 6px;font-size:13px;font-weight:800;text-align:center}
+
+.food-suggestions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.food-suggestions .go{width:auto;margin:0;flex:1 1 9rem}
+.food-answer{margin-top:12px}
+.food-answer h3{margin-top:0}
+.food-answer a,#faqTopics a,#research a,#sos .note a{overflow-wrap:anywhere}
+.level-evidence{margin:8px 0;font-size:.92rem}
+.level-evidence ul{margin:4px 0;padding-inline-start:1.3rem}
+.supervisor-doctor bdi{display:block;overflow-wrap:anywhere}
+#labResult{font-weight:700}
 </style>
 </head>
 <body>
@@ -105,7 +115,7 @@ details p{margin:0;padding:0 16px 14px}
     <button class="big" data-go="tips"><span class="i">💡</span><span>نصائح للوقاية<small>الأكل، الحركة، الدواء، القدمان</small></span></button>
     <button class="big" data-go="sos"><span class="i">🚑</span><span>طوارئ: ماذا أفعل؟<small>إذا نزل السكر أو ارتفع كثيراً</small></span></button>
     <button class="big" data-go="daily"><span class="i">🍽️</span><span>وجباتي ونشاطي<small>سجّل أكلك ومشيك بضغطة</small></span></button>
-    <button class="big" data-go="ask"><span class="i">❓</span><span>أسئلة عن الأكل<small>التمر، الصيام، الخبز...</small></span></button>
+    <button class="big" data-go="ask"><span class="i">❓</span><span>المساعد الغذائي<small>اسأل عن الأكل واقرأ المصدر</small></span></button>
     <button class="big" data-go="more"><span class="i">📄</span><span>تقرير الطبيب والنسخ الاحتياطي<small>اطبع قراءاتك أو أرسلها لطبيبك</small></span></button>
     <button class="big" data-go="about"><span class="i">ℹ️</span><span>عن المشروع<small>الطالبات والمشرف</small></span></button>
   </div>
@@ -153,7 +163,7 @@ details p{margin:0;padding:0 16px 14px}
 <section id="tips">
   <h2>💡 نصائح للوقاية</h2>
   <details open><summary>🍽️ الأكل</summary><ul>
-    <li>كُل 3 وجبات في أوقات ثابتة، ولا تترك وجبة.</li>
+    <li>نظّم مواعيد الوجبات وكمياتها وفق خطة الأكل التي اتفقت عليها مع فريق الرعاية.</li>
     <li>املأ نصف الطبق خضاراً (خيار، طماطم، سلطة، كوسة).</li>
     <li>قلّل الخبز والأرز والمعكرونة والتمر؛ وكُل منها كمية صغيرة.</li>
     <li>اترك السكر والعصائر والمشروبات الغازية والحلويات.</li>
@@ -172,10 +182,9 @@ details p{margin:0;padding:0 16px 14px}
     <li>لا تمشِ حافياً أبداً، ولا تقصّ الأظافر بعمق.</li>
     <li>أي جرح لا يلتئم خلال يومين: اذهب للطبيب.</li></ul></details>
   <details><summary>👁️ الفحوصات الدورية</summary><ul>
-    <li>تحليل السكر التراكمي: كل 3 أشهر.</li>
-    <li>فحص العين: مرة كل سنة.</li>
-    <li>فحص الكلى والكوليسترول وضغط الدم: مرة كل سنة على الأقل.</li>
-    <li>قِس ضغطك بانتظام؛ المطلوب أقل من 130/80.</li></ul></details>
+    <li>يحدد طبيبك موعد تحليل السكر التراكمي بحسب استقرار القراءات وخطة العلاج.</li>
+    <li>اتفق مع فريق الرعاية على مواعيد فحص العين والكلى والكوليسترول وقياس ضغط الدم.</li></ul>
+    <p class="note"><a href="https://www.cdc.gov/diabetes/treatment/your-diabetes-care-schedule.html" target="_blank" rel="noopener noreferrer">مرجع جدول متابعة السكري</a></p></details>
   <details><summary>🚭 عادات يومية</summary><ul>
     <li>أقلع عن التدخين.</li>
     <li>نم 7 ساعات، وحاول تقليل التوتر.</li>
@@ -189,24 +198,26 @@ details p{margin:0;padding:0 16px 14px}
     <h3>السكر منخفض (أقل من 70)</h3>
     <p><b>العلامات:</b> رجفة، عرق بارد، جوع شديد، دوخة، خفقان، تشوش.</p>
     <p><b>افعل فوراً:</b></p>
-    <ul><li>اجلس، وكُل أو اشرب شيئاً سكرياً: 3 ملاعق صغيرة سكر، أو نصف كوب عصير، أو 3 حبات تمر.</li>
+    <ul><li>للبالغ الواعي القادر على البلع، تناول 15 غرامًا من الكربوهيدرات سريعة المفعول، مثل نصف كوب عصير أو أقراص الغلوكوز بحسب إرشادات العبوة.</li>
     <li>انتظر 15 دقيقة ثم قِس السكر.</li>
     <li>إذا بقي أقل من 70 كرّر ما سبق.</li>
     <li>بعد أن يتحسن كُل وجبة خفيفة.</li></ul>
-    <p><b>إن أغمي على المريض:</b> لا تعطه شيئاً بفمه، واتصل بالإسعاف فوراً.</p>
+    <p>عند فقد الوعي أو تعذّر البلع، اتصل بالإسعاف فورًا وتجنّب إعطاء المصاب طعامًا أو شرابًا بالفم.</p>
+    <p class="note"><a href="https://www.cdc.gov/diabetes/treatment/treatment-low-blood-sugar-hypoglycemia.html" target="_blank" rel="noopener noreferrer">مرجع التعامل مع انخفاض السكر</a></p>
   </div>
   <div class="card sos">
     <h3>السكر عند 300 ملغ/دل أو أعلى</h3>
     <p><b>العلامات:</b> عطش شديد، تبول كثير، تعب، جفاف الفم، غثيان، رائحة الفم كالفاكهة.</p>
     <ul><li>اشرب الماء، ولا تقم بمجهود.</li>
     <li>إذا استمر السكر عند 300 ملغ/دل أو أعلى، فتوجّه إلى الطوارئ فورًا.</li>
-    <li>توجّه إلى الطوارئ فورًا أيضًا إذا صَعُب التنفس أو منعك القيء من الاحتفاظ بالسوائل.</li></ul>
+    <li>توجّه إلى الطوارئ فورًا أيضًا إذا صَعُب التنفس أو منعك القيء من الاحتفاظ بالسوائل أو ظهرت رائحة فاكهة في النفس.</li></ul>
+    <p class="note"><a href="https://www.cdc.gov/diabetes/about/diabetic-ketoacidosis.html" target="_blank" rel="noopener noreferrer">مرجع علامات الحماض الكيتوني السكري</a></p>
   </div>
   <div class="card sos">
     <h3>اذهب للطوارئ فوراً إذا</h3>
     <ul><li>ألم أو ضغط في الصدر</li><li>ضعف مفاجئ في جهة من الجسم أو التواء الفم أو صعوبة الكلام</li><li>غياب عن الوعي أو تشنج</li></ul>
     <a class="call" href="tel:1412">📞 مركز طب الطوارئ والدعم (1412)</a>
-    <p class="note">إذا تعذّر الاتصال في حالة طارئة، توجّه إلى أقرب قسم طوارئ أو اطلب المساعدة للوصول إليه.</p>
+    <p class="note">تغطية هذا الرقم في سلوق تحتاج إلى تأكيد محلي. في حالة طارئة إذا تعذّر الاتصال، اطلب المساعدة للوصول إلى أقرب قسم طوارئ.</p>
   </div>
 </section>
 
@@ -231,21 +242,20 @@ details p{margin:0;padding:0 16px 14px}
 </section>
 
 <section id="ask">
-  <h2>❓ أسئلة عن الأكل</h2>
-  <p class="note">اضغط على السؤال لتقرأ الجواب. الإجابات إرشادية وتعمل دون إنترنت.</p>
-  <input id="faqQ" type="search" placeholder="ابحث في الأسئلة..." style="margin-bottom:12px">
-  <details><summary>🌴 هل آكل التمر؟</summary><p>نعم بكمية صغيرة: حبة إلى حبتين مع وجبة، وليس وحده على معدة فارغة. التمر سكر طبيعي يرفع السكر. استثناء: حبات التمر الثلاث علاج لهبوط السكر. قِس سكرك بعد ساعتين لتعرف كيف يتأثر جسمك.</p></details>
-  <details><summary>🌙 هل أصوم رمضان؟</summary><p>اسأل طبيبك قبل رمضان بأسابيع؛ فقد يغيّر مواعيد الدواء أو جرعته. لا تغيّر الدواء بنفسك. افطر فوراً إذا نزل السكر عن 70 أو ارتفع فوق 300 أو شعرت بدوخة شديدة. في السحور كُل بروتيناً وخضاراً وقليلاً من النشويات، واشرب الماء بين الإفطار والسحور.</p></details>
-  <details><summary>🍞 كم آكل من الخبز؟</summary><p>كمية صغيرة: ربع رغيف إلى نصفه في الوجبة، ويفضّل خبز القمح الكامل أو الشعير. اجعل الخضار والسلطة معه ولا تأكل الخبز وحده.</p></details>
-  <details><summary>🍚 الأرز والمعكرونة والكسكسي</summary><p>لا حاجة لتركها كلياً، لكن اجعلها ربع الطبق فقط، ونصف الطبق خضار، وربعه بروتين (لحم، سمك، دجاج، بيض). برّد الأرز أو المعكرونة بعد الطبخ وأعد تسخينها؛ فهذا يخفف أثرها قليلاً.</p></details>
-  <details><summary>🍎 هل آكل الفاكهة؟</summary><p>نعم، حبة صغيرة واحدة في المرة (تفاحة، برتقالة، كمثرى) ويفضّل بعد وجبة. تجنب الإكثار من العنب والبطيخ والموز الكبير، وكل الفاكهة كاملة بدل العصير.</p></details>
-  <details><summary>🧃 العصير والمشروبات الغازية</summary><p>لا تشربها يومياً؛ فهي ترفع السكر بسرعة. اشرب الماء أو الشاي والقهوة دون سكر. العصير يفيد فقط عند نزول السكر تحت 70.</p></details>
-  <details><summary>🍵 الشاي والقهوة</summary><p>اشربهما دون سكر أو بملعقة صغيرة جداً. يمكن استخدام مُحلٍّ بديل، واسأل طبيبك إن كان مناسباً لك.</p></details>
-  <details><summary>🍰 الحلويات</summary><p>الأفضل تركها. إن أردت قطعة صغيرة فكُلها بعد وجبة كاملة وليس وحدها، وامشِ 10 دقائق بعدها، وقِس سكرك بعد ساعتين.</p></details>
-  <details><summary>🫘 العدس والفول والحمص</summary><p>مفيدة بكمية معتدلة (نصف كوب تقريباً) لأنها تحتوي ألياف وبروتين وترفع السكر ببطء، لكنها تحتوي نشويات أيضاً فلا تضف إليها خبزاً كثيراً.</p></details>
-  <details><summary>🍟 الزيوت والمقليات</summary><p>قلّلها واختر الشوي أو السلق أو الفرن. استعمل زيت الزيتون بكمية قليلة. الدهون الكثيرة تضر القلب، وهو أكثر ما يتأثر بالسكر.</p></details>
-  <details><summary>🥛 الحليب والتمور باللبن</summary><p>كوب حليب أو لبن قليل الدسم مناسب في اليوم. تجنب الحليب المحلّى والمشروبات المحلّاة.</p></details>
-  <div class="card note">⚠️ هذه نصائح عامة ولا تناسب كل حالة. اسأل طبيبك أو أخصائي التغذية عن نظامك الخاص.</div>
+  <h2>المساعد الغذائي</h2>
+  <p class="note">اكتب سؤالك بالعربية أو باللهجة الليبية. يعرض المساعد إجابات غذائية عامة مرتبطة بمراجعها.</p>
+  <div class="card">
+    <form id="faqForm" autocomplete="off">
+      <label for="faqQ">اسأل رفيق السكري</label>
+      <input id="faqQ" type="search" maxlength="180" placeholder="شن نقدر ناكل في الفطور؟">
+      <button class="go" type="submit">اعرض الإجابة</button>
+    </form>
+    <div id="faqSuggestions" class="food-suggestions" aria-label="أسئلة مقترحة"></div>
+  </div>
+  <div id="faqResult" class="card food-answer" role="status" aria-live="polite" hidden></div>
+  <h3>الموضوعات الغذائية</h3>
+  <p id="faqListStatus" class="note" role="status"></p>
+  <div id="faqTopics"></div>
 </section>
 
 <section id="more">
@@ -294,10 +304,11 @@ details p{margin:0;padding:0 16px 14px}
     <button class="go sec" id="accountIn" data-go="doctor">تسجيل الدخول بالبريد</button>
     <button class="go sec" id="accountOut" hidden>تسجيل الخروج</button>
     <button class="go sec" id="accountDoctor" data-go="doctor" hidden>فتح لوحة الطبيب</button>
+    <button class="go sec" id="accountSupervisor" data-go="supervisor" hidden>فتح لوحة المشرف</button>
   </div>
   <h2>💾 نسخة احتياطية</h2>
   <div class="card">
-    <p>بياناتك محفوظة في هذا الهاتف فقط. احفظ نسخة حتى لا تضيع إذا غيّرت الهاتف.</p>
+    <p>احتفظ بنسخة من سجلك المحلي لنقله عند تغيير الهاتف.</p>
     <button class="go" id="bexp">⬇️ احفظ نسخة من بياناتي</button>
     <label class="lb">⬆️ استرجع نسخة محفوظة<input class="file" id="bimp" type="file" accept=".json,application/json"></label>
     <div id="bmsg" role="status" aria-live="polite"></div>
@@ -363,7 +374,50 @@ details p{margin:0;padding:0 16px 14px}
     <ul><li>تسجيل قراءات السكر بسهولة وعرضها بوضوح.</li><li>التنبؤ المبكر بخطر الهبوط أو الارتفاع.</li><li>مساعدة الطبيب في متابعة عدة مرضى.</li><li>مساعد ذكي يجيب عن أسئلة الغذاء.</li></ul>
     <p class="note">المساعد الطبي لا يستبدل الطبيب؛ بل يساعده ويساعدك.</p>
   </div>
-  <p class="note">إصدار التطبيق <b dir="ltr">v50</b></p>
+  <button class="go sec" data-go="research">مختبر التنبؤ البحثي</button>
+  <p class="note">إصدار التطبيق <b dir="ltr">v51</b></p>
+</section>
+<section id="research">
+  <h2>مختبر التنبؤ البحثي</h2>
+  <div class="card">
+    <p>تجربة على بيانات منشورة للسكري من النوع الثاني. يقدّر النموذج ظهور قراءة حساس أعلى من 180 ملغ/دل في الساعة التالية، باستخدام قراءتين يدويتين والفاصل بينهما.</p>
+    <p class="note">هذه شاشة للعرض الأكاديمي بقيم افتراضية. قرارات الرعاية تعتمد على القياس الفعلي وخطة الطبيب.</p>
+    <div id="labSummary" class="note" role="status">جارٍ تحميل نتائج الدراسة…</div>
+    <p class="note"><a href="https://doi.org/10.6084/m9.figshare.21600933.v5" target="_blank" rel="noopener noreferrer">بيانات شنغهاي، الإصدار الخامس</a></p>
+  </div>
+  <div class="card">
+    <form id="labForm" autocomplete="off">
+      <label for="labPrevious">قراءة الإصبع السابقة (ملغ/دل)</label>
+      <input id="labPrevious" type="number" min="20" max="700" step="any" value="145" required>
+      <label for="labCurrent">قراءة الإصبع الحالية (70 إلى 180 ملغ/دل)</label>
+      <input id="labCurrent" type="number" min="70" max="180" step="any" value="120" required>
+      <label for="labGap">الدقائق بين القراءتين (15 إلى 1440)</label>
+      <input id="labGap" type="number" min="15" max="1440" step="any" value="240" required>
+      <button class="go" type="submit" disabled>جرّب النموذج</button>
+    </form>
+    <div id="labResult" class="res" role="status" aria-live="polite" hidden></div>
+  </div>
+  <button class="go sec" data-go="about">رجوع إلى المشروع</button>
+</section>
+
+<section id="supervisor">
+  <h2>لوحة المشرف</h2>
+  <div id="supervisorStatus" class="res" role="status">سجّل الدخول بحساب مشرف معتمد.</div>
+  <div id="supervisorPanel" hidden>
+    <div class="card">
+      <form id="supervisorForm" autocomplete="off">
+        <label for="supervisorUid">معرّف حساب الطبيب (UID)</label>
+        <p class="note">انسخ معرّف الحساب من قائمة المستخدمين في Firebase Authentication.</p>
+        <input id="supervisorUid" type="text" dir="ltr" maxlength="128" spellcheck="false" required>
+        <button class="go" type="submit">اعتماد الطبيب</button>
+      </form>
+    </div>
+    <h3>اعتماد الأطباء</h3>
+    <div id="supervisorDoctors"></div>
+    <button id="supervisorNext" class="go sec" type="button" hidden>عرض المزيد</button>
+    <button id="supervisorRefresh" class="go sec" type="button">تحديث القائمة</button>
+  </div>
+  <button class="go sec" data-go="more">رجوع إلى الحساب</button>
 </section>
 </main>
 <div id="printarea"></div>
@@ -393,5 +447,8 @@ details p{margin:0;padding:0 16px 14px}
   const db = window.firebase ? firebase.firestore() : null;
 </script>
 <script src="app.js"></script>
+<script src="nutrition.js"></script>
+<script src="glucose-lab.js"></script>
+<script src="supervisor.js"></script>
 </body>
 </html>

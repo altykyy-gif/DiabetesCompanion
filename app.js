@@ -113,7 +113,7 @@ function persistentHigh(recent) {
 
 function judge(v, w) {
   if (v < 54) return ["bad","خطر: السكر منخفض جدًا. اطلب المساعدة فورًا. إذا كنت واعيًا وقادرًا على البلع فتناول سكرًا سريع المفعول. عند فقدان الوعي أو تعذّر البلع يجب الاتصال بالطوارئ فورًا.","هبوط شديد"];
-  if (v < 70) return ["bad","السكر منخفض. كُل 3 ملاعق صغيرة سكر أو نصف كوب عصير، وأعد القياس بعد 15 دقيقة.","منخفض"];
+  if (v < 70) return ["bad","السكر منخفض. للبالغ القادر على البلع، تناول 15 غرامًا من الكربوهيدرات سريعة المفعول وأعد القياس بعد 15 دقيقة. افتح إرشادات الطوارئ للمزيد.","منخفض"];
   if (v >= highGlucose) return ["bad","السكر عند 300 ملغ/دل أو أعلى. إذا استمر عند هذا المستوى، أو صَعُب التنفس أو منعك القيء من الاحتفاظ بالسوائل، فتوجّه إلى الطوارئ فورًا.","مرتفع جدًا"];
   if (w === "f") {
     if (v <= 130) return ["ok","ممتاز! سكرك الصائم في المعدل الجيد. استمر على نظامك.","جيد"];
@@ -245,13 +245,18 @@ window.rafiqJudge=judge;
 // تصنيف الخطورة الموحَّد: يستخدمه التطبيق ولوحة الطبيب (rs: القراءات الأحدث أولاً، كل واحدة {v,w})
 window.rafiqLevel=function(rs){
  if(!rs||!rs.length)return{k:4,t:"لا قراءات بعد",c:""};
- var l3=rs.slice(0,3),l5=rs.slice(0,5);
- if(l3.some(function(r){return r.v<54}))return{k:0,t:"خطر: هبوط شديد",c:"bad"};
- if(persistentHigh(rs))return{k:0,t:persistentHighLabel,c:"bad"};
- if(l3.some(r=>r.v>highGlucose))return{k:0,t:"خطر: قراءة مرتفعة جدًا",c:"bad"};
- if(rs[0].v===highGlucose)return{k:2,t:"تنبيه: قراءة عند 300 ملغ/دل",c:"warn"};
- if(l5.filter(function(r){return r.v<70}).length>=2)return{k:1,t:"تنبيه: هبوط متكرر",c:"bad"};
- if(l3.length===3&&l3.every(function(r){return r.v>=70&&judge(r.v,r.w==="f"?"f":"a")[0]!=="ok"}))return{k:2,t:"مرتفع في آخر القراءات",c:"warn"};
+ const lastThree=rs.slice(0,3);
+ const severeLow=lastThree.filter(r=>r.v<54);
+ if(severeLow.length)return{k:0,t:"خطر: هبوط شديد",c:"bad",evidence:severeLow};
+ if(persistentHigh(rs))return{k:0,t:persistentHighLabel,c:"bad",evidence:rs.slice(0,2)};
+ const veryHigh=lastThree.filter(r=>r.v>highGlucose);
+ if(veryHigh.length)return{k:0,t:"خطر: قراءة مرتفعة جدًا",c:"bad",evidence:veryHigh};
+ if(rs[0].v===highGlucose)return{k:2,t:"تنبيه: قراءة عند 300 ملغ/دل",c:"warn",evidence:rs.slice(0,1)};
+ const low=rs.slice(0,5).filter(r=>r.v<70);
+ if(low.length>=2)return{k:1,t:"تنبيه: هبوط متكرر",c:"bad",evidence:low};
+ if(lastThree.length===3&&lastThree.every(r=>r.v>=70&&judge(r.v,r.w==="f"?"f":"a")[0]!=="ok")){
+   return{k:2,t:"مرتفع في آخر القراءات",c:"warn",evidence:lastThree};
+ }
  return{k:3,t:"مستقر",c:"ok"}};
 function render(){var a=load(),h=document.getElementById("hist");
  if(!a.length){h.innerHTML="<p>لا توجد قراءات بعد. اكتب أول قراءة فوق 👆</p>";return}
@@ -364,8 +369,9 @@ function trend(a){
  if(b.length<4)return null;var n=b.length,sx=0,sy=0,sxy=0,sxx=0;
  b.forEach(function(r,i){sx+=i;sy+=r.v;sxy+=i*r.v;sxx+=i*i});
  var sl=(n*sxy-sx*sy)/(n*sxx-sx*sx),pr=Math.round((sy-sl*sx)/n+sl*n);
- if(sl>=8&&pr>180)return["warn","📈 قراءاتك الأخيرة تميل للارتفاع، وقد تصل القادمة إلى نحو "+pr+" (تقدير تجريبي). راجع أكلك ودوائك."];
- if(sl<=-8&&pr<80)return["warn","📉 قراءاتك الأخيرة تميل للانخفاض، وقد تنزل القادمة إلى نحو "+Math.max(pr,30)+" (تقدير تجريبي). لا تتأخر عن وجباتك."];
+ var recent=b[0].w==="f"?"قراءات الصيام الأخيرة":"قراءات ما بعد الأكل الأخيرة";
+ if(sl>=8&&pr>180)return["warn","📈 "+recent+" تميل إلى الارتفاع. اعرض تسلسل القراءات على طبيبك."];
+ if(sl<=-8&&pr<80)return["warn","📉 "+recent+" تميل إلى الانخفاض. اعرض تسلسل القراءات على طبيبك."];
  return null}
 function avg(x){return x.reduce(function(p,c){return p+c},0)/x.length}
 function dkOf(t){var d=new Date(t);return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()}
@@ -382,7 +388,7 @@ function insights(){
 function risk(){
  var a=logs().slice().sort((x,y)=>(Number(x.ts)||0)-(Number(y.ts)||0)),l3=a.slice(-3),l5=a.slice(-5),m=[];
  function hi(r){return r.v>=70&&r.c!=="ok"}
- if(l3.some(function(r){return r.v<54}))m.push(["bad","⚠️ ظهرت قراءة منخفضة جداً (أقل من 54). عالج الهبوط فوراً، وإن لم تتحسن اتصل بالإسعاف وأخبر طبيبك."]);
+ if(l3.some(function(r){return r.v<54}))m.push(["bad","⚠️ ظهرت قراءة منخفضة جدًا (أقل من 54). إذا كان الهبوط قائمًا الآن، اطلب المساعدة فورًا واتبع إرشادات الطوارئ."]);
  if(persistentHigh(l3.slice().reverse()))m.push(["bad","⚠️ "+persistentHighAdvice]);
  else if(l3.some(r=>r.v>=highGlucose))m.push(["bad","⚠️ "+judge(highGlucose,"f")[1]]);
  if(!m.length){
@@ -497,7 +503,16 @@ render();
       p.then(function(v){clearTimeout(t);res(v)},function(e){clearTimeout(t);rej(e)});
     });
   }
-  var APP_VER="v50";
+  var APP_VER="v51";
+  function showEvidence(rows) {
+    if (!rows?.length) return "";
+    const evidence=rows.map(r=>{
+      const ts=Number(r.ts);
+      const time=validTimestamp(ts)?new Date(ts).toLocaleString("ar-LY"):(r.d||"وقت غير متاح");
+      return '<li><b>'+esc(r.v)+' ملغ/دل</b> · '+esc(wh2(r.w))+' · '+esc(time)+'</li>';
+    });
+    return '<details class="level-evidence"><summary>القراءات التي أدّت إلى التصنيف</summary><ul>'+evidence.join("")+'</ul></details>';
+  }
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
@@ -509,7 +524,7 @@ render();
         ?'<button class="go sec" data-unlink="'+esc(r.id)+'" style="margin-top:10px">🔓 فك الربط</button>'
         :'<button class="go sec" data-link="'+esc(r.id)+'" data-name="'+esc(r.name)+'" data-old="'+esc(r.code||"")+'" style="margin-top:10px">🔑 إنشاء رمز ربط</button>';
       var last=r.last?'<p class="note" style="margin:6px 0 0">آخر قراءة: <b>'+esc(r.last.v)+' mg/dL</b> – '+esc(wh2(r.last.w))+' – '+esc(r.last.d||"")+'</p>':'';
-      return '<div class="card"><b>'+esc(r.name)+'</b><div class="res '+lv.c+'" style="margin:8px 0 0">'+lv.t+'</div>'+last+'<p class="note" style="margin:6px 0 0">'+st+'</p>'+lb+'<button class="go sec" data-det="'+esc(r.id)+'" style="margin-top:10px">📋 عرض التفاصيل والنتائج</button><div class="det" hidden data-open="0"></div><button class="go sec" data-del="'+esc(r.id)+'" data-name="'+esc(r.name)+'" style="margin-top:10px">🗑️ حذف هذا المريض</button></div>';
+      return '<div class="card"><b>'+esc(r.name)+'</b><div class="res '+lv.c+'" style="margin:8px 0 0">'+lv.t+'</div>'+last+showEvidence(lv.evidence)+'<p class="note" style="margin:6px 0 0">'+st+'</p>'+lb+'<button class="go sec" data-det="'+esc(r.id)+'" style="margin-top:10px">📋 عرض التفاصيل والنتائج</button><div class="det" hidden data-open="0"></div><button class="go sec" data-del="'+esc(r.id)+'" data-name="'+esc(r.name)+'" style="margin-top:10px">🗑️ حذف هذا المريض</button></div>';
     }).join("")+'<p class="note" dir="ltr">'+APP_VER+'</p>';
   }
   function load(uid){
@@ -531,7 +546,7 @@ render();
             D.collection("patients").doc(r.id).collection("readings").orderBy("ts","desc").limit(5).get({source:"server"}),
             8000
           ).then(function(rs){
-            var vs=[];rs.forEach(function(x){var q=x.data();if(validGlucose(q.v))vs.push({v:Number(q.v),w:q.w})});
+            var vs=[];rs.forEach(function(x){var q=x.data();if(validGlucose(q.v))vs.push({v:Number(q.v),w:q.w,ts:q.ts,d:q.d})});
             r.lv=level(vs);r.last=rs.docs.length?rs.docs[0].data():null;
           }).catch(function(){r.lv={k:2.5,t:"تعذّر تحميل القراءات، حدّث القائمة",c:"warn"}});
         })).then(function(){
@@ -725,6 +740,13 @@ render();
       .then(function(){if(A.currentUser)load(A.currentUser.uid)})
       .catch(function(err){b.disabled=false;window.alert("تعذّر فك الربط: "+((err&&(err.code||err.message))||"unknown"))});
   }
+  function mealSize(value) {
+    const size=String(value||"").trim();
+    if (size==="heavy" || size.startsWith("ثقيلة")) return "ثقيلة";
+    if (size==="light" || size.startsWith("خفيفة")) return "خفيفة";
+    if (size==="normal" || size==="عادية") return "عادية";
+    return size || "الحجم غير محدد";
+  }
   function showDetails(pid,box){
     if(!box) return;
     if(box.getAttribute("data-open")==="1"){box.hidden=true;box.setAttribute("data-open","0");return}
@@ -745,7 +767,7 @@ render();
       var meals=[],tk=[];
       ev.docs.forEach(function(x){
         var e=x.data();
-        if(e.k==="m") meals.push('<div class="card" style="margin:6px 0">🍽️ '+esc(e.n)+' ('+esc(e.q==="heavy"?"ثقيلة":(e.q==="light"?"خفيفة":"عادية"))+') – '+esc(e.day)+' '+esc(e.t||"")+'</div>');
+        if(e.k==="m") meals.push('<div class="card" style="margin:6px 0">🍽️ '+esc(e.n)+' ('+esc(mealSize(e.q))+') – '+esc(e.day)+' '+esc(e.t||"")+'</div>');
         else if(e.k==="a") meals.push('<div class="card" style="margin:6px 0">🚶 '+esc(e.n)+' ('+esc(e.m)+' دقيقة) – '+esc(e.day)+'</div>');
         else if(e.k==="taken") tk.push('<div style="margin:4px 0">✅ '+esc(e.day)+' – '+esc(e.dn||"دواء")+'</div>');
       });
