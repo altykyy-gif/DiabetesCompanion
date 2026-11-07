@@ -95,6 +95,31 @@ details p{margin:0;padding:0 16px 14px}
 .level-evidence ul{margin:4px 0;padding-inline-start:1.3rem}
 .supervisor-doctor bdi{display:block;overflow-wrap:anywhere}
 #labResult{font-weight:700}
+
+/* متابعة السجل v52 */
+.fu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,145px),1fr));gap:10px}
+.fu-grid>div,.fu-record>div{min-width:0}
+.fu-grid>div{display:flex;flex-direction:column}
+.fu-grid>div>input,.fu-grid>div>select{margin-top:auto}
+.fu-plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.fu-plan-grid>div:first-child{grid-column:1/-1}
+.fu-icon{width:1.1em;height:1.1em;vertical-align:-.18em;color:var(--main);fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#followup summary::before,#log summary::before{content:"+"}
+#followup details[open] summary::before,#log details[open] summary::before{content:"−"}
+.fu-panel{padding:0 16px 16px}
+.fu-panel input,.fu-panel select,#readFilter input,#readFilter select,#bpanel input{min-width:0;min-height:48px;font-size:1rem}
+.fu-panel textarea{width:100%;min-height:86px;padding:8px 12px;border:2px solid var(--main);border-radius:12px;background:var(--bg);color:var(--ink);font:inherit}
+.fu-panel textarea:focus-visible{outline:4px solid #e8a200;outline-offset:2px}
+.fu-buttons{display:flex;flex-wrap:wrap;gap:7px}
+button.go.fu-action{min-height:44px;width:auto;padding:7px 12px;margin-top:5px;font-size:.95rem}
+.fu-record{align-items:flex-start;flex-wrap:wrap;overflow-wrap:anywhere}
+.fu-record p{margin:4px 0}
+.fu-check{display:flex;align-items:center;gap:9px;font-size:1rem}
+.fu-check input{width:22px;min-height:22px;height:22px;flex:0 0 22px;accent-color:var(--main)}
+.fu-meter{margin:0 0 8px;font-size:1rem}
+#bpanel{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px}
+#readCount{margin:8px 0}
+
 </style>
 </head>
 <body>
@@ -116,6 +141,7 @@ details p{margin:0;padding:0 16px 14px}
     <button class="big" data-go="sos"><span class="i">🚑</span><span>طوارئ: ماذا أفعل؟<small>إذا نزل السكر أو ارتفع كثيراً</small></span></button>
     <button class="big" data-go="daily"><span class="i">🍽️</span><span>وجباتي ونشاطي<small>سجّل أكلك ومشيك بضغطة</small></span></button>
     <button class="big" data-go="ask"><span class="i">❓</span><span>المساعد الغذائي<small>اسأل عن الأكل واقرأ المصدر</small></span></button>
+    <button class="big" data-go="followup"><span class="i"><svg class="fu-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 10h18m-13 5 2 2 5-5"/></svg></span><span>فحوصي وزياراتي<small id="fuHomeDue">التراكمي والضغط والمواعيد وأسئلتي للطبيب</small></span></button>
     <button class="big" data-go="more"><span class="i">📄</span><span>تقرير الطبيب والنسخ الاحتياطي<small>اطبع قراءاتك أو أرسلها لطبيبك</small></span></button>
     <button class="big" data-go="about"><span class="i">ℹ️</span><span>عن المشروع<small>الطالبات والمشرف</small></span></button>
   </div>
@@ -133,11 +159,29 @@ details p{margin:0;padding:0 16px 14px}
     <button class="go" id="save">احفظ وأخبرني</button>
     <div id="res" role="status" aria-live="polite"></div>
   </div>
+  <details>
+    <summary>تصفية القراءات وتصديرها</summary>
+    <div class="fu-panel">
+      <form id="readFilter">
+        <div class="fu-grid">
+          <div><label for="readFrom">من تاريخ</label><input id="readFrom" type="date"></div>
+          <div><label for="readTo">إلى تاريخ</label><input id="readTo" type="date"></div>
+          <div><label for="readContext">سياق القياس</label><select id="readContext"><option value="">جميع القراءات</option><option value="f">صائم</option><option value="a">بعد الأكل</option></select></div>
+        </div>
+        <div class="fu-buttons"><button class="go fu-action" type="submit">تطبيق التصفية</button><button class="go sec fu-action" id="readReset" type="button">إلغاء التصفية</button></div>
+      </form>
+      <button class="go sec" id="readExport" type="button">تنزيل القراءات المحددة (CSV)</button>
+      <p class="note">يتبع الرسم والسجل التصفية. تبقى التنبيهات مرتبطة بأحدث القياسات المسجلة.</p>
+      <p class="note" id="readMessage" role="status" aria-live="polite"></p>
+    </div>
+  </details>
   <h2>📈 رسمة قراءاتي</h2>
   <div class="card chartwrap" id="chart"></div>
   <div class="card" id="ins" style="display:none"></div>
   <h2>قراءاتي السابقة</h2>
+  <p class="note" id="readCount" aria-live="polite"></p>
   <div class="card" id="hist"></div>
+  <button class="go sec" id="readMore" type="button" hidden>عرض قراءات أقدم</button>
   <p class="note">تُحفظ القراءات في سجلك على هذا الجهاز، وتُزامَن مع طبيبك عند تفعيل الربط.</p>
 </section>
 
@@ -182,7 +226,7 @@ details p{margin:0;padding:0 16px 14px}
     <li>لا تمشِ حافياً أبداً، ولا تقصّ الأظافر بعمق.</li>
     <li>أي جرح لا يلتئم خلال يومين: اذهب للطبيب.</li></ul></details>
   <details><summary>👁️ الفحوصات الدورية</summary><ul>
-    <li>يحدد طبيبك موعد تحليل السكر التراكمي بحسب استقرار القراءات وخطة العلاج.</li>
+    <li>يمكنك ضبط تذكير السكر التراكمي كل 3 أشهر في سجل المتابعة، وتغيير الفترة وفق الموعد الذي حدده الطبيب.</li>
     <li>اتفق مع فريق الرعاية على مواعيد فحص العين والكلى والكوليسترول وقياس ضغط الدم.</li></ul>
     <p class="note"><a href="https://www.cdc.gov/diabetes/treatment/your-diabetes-care-schedule.html" target="_blank" rel="noopener noreferrer">مرجع جدول متابعة السكري</a></p></details>
   <details><summary>🚭 عادات يومية</summary><ul>
@@ -258,12 +302,101 @@ details p{margin:0;padding:0 16px 14px}
   <div id="faqTopics"></div>
 </section>
 
+<section id="followup">
+  <h2><svg class="fu-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 10h18m-13 5 2 2 5-5"/></svg> فحوصي وزياراتي</h2>
+  <div class="card">
+    <p class="fu-meter" id="fuA1cDue" role="status"></p>
+    <p class="fu-meter" id="fuBpTarget"></p>
+    <p class="fu-meter" id="fuNextVisit"></p>
+    <p class="note">هذه البنود تُحفظ على جهازك. يمكنك إرفاق ملخصها في تقرير تختار مشاركته.</p>
+    <div id="fuMessage" role="status" aria-live="polite" hidden></div>
+  </div>
+  <details>
+    <summary>ضبط خطة المتابعة</summary>
+    <div class="fu-panel">
+      <p class="note">التذكير الافتراضي بالتراكمي كل 3 أشهر، وقد تكفي متابعته مرتين في السنة لمن استقرت حالته وحقق هدفه. هدف الضغط المعروض افتراضيًا أقل من <bdi dir="ltr">130/80</bdi> ملم زئبق إذا أمكن بلوغه بأمان. اتبع الفاصل والهدف اللذين تحددهما مع طبيبك.</p>
+      <form id="fuPlanForm">
+        <div class="fu-grid fu-plan-grid">
+          <div><label for="fuMonths">فاصل متابعة التراكمي بالأشهر</label><input id="fuMonths" type="number" min="1" max="24" step="1" value="3" required></div>
+          <div><label for="fuGoalSys">الهدف الانقباضي</label><input id="fuGoalSys" type="number" min="1" max="400" step="1" value="130" required></div>
+          <div><label for="fuGoalDia">الهدف الانبساطي</label><input id="fuGoalDia" type="number" min="1" max="400" step="1" value="80" required></div>
+        </div>
+        <button class="go" type="submit">حفظ خطة المتابعة</button>
+      </form>
+      <p class="note">الجمعية الأمريكية للسكري، معايير 2026: <a href="https://doi.org/10.2337/dc26-S006" target="_blank" rel="noopener noreferrer">متابعة التراكمي</a> · <a href="https://doi.org/10.2337/dc26-S010" target="_blank" rel="noopener noreferrer">أهداف ضغط الدم</a>.</p>
+    </div>
+  </details>
+  <details open>
+    <summary>السكر التراكمي والفحوص</summary>
+    <div class="fu-panel">
+      <form id="fuLabForm">
+        <label for="fuLabKind">نوع الفحص</label>
+        <select id="fuLabKind"><option value="a1c">السكر التراكمي (HbA1c)</option><option value="other">فحص آخر</option></select>
+        <div id="fuOtherLab" hidden>
+          <label for="fuLabName">اسم الفحص</label><input id="fuLabName" type="text" maxlength="100" placeholder="مثال: الكوليسترول">
+          <label for="fuLabUnit">الوحدة (اختياري)</label><input id="fuLabUnit" type="text" maxlength="30">
+        </div>
+        <div class="fu-grid">
+          <div><label id="fuLabLabel" for="fuLabValue">نتيجة التراكمي (%)</label><input id="fuLabValue" type="text" inputmode="decimal" maxlength="100" required></div>
+          <div><label for="fuLabDate">تاريخ النتيجة</label><input id="fuLabDate" type="date" required></div>
+        </div>
+        <label for="fuLabNote">ملاحظة (اختياري)</label><input id="fuLabNote" type="text" maxlength="300">
+        <div class="fu-buttons"><button class="go fu-action" id="fuLabSave" type="submit">حفظ</button><button class="go sec fu-action" id="fuLabCancel" type="button" hidden>إلغاء التعديل</button></div>
+      </form>
+      <div id="fuLabList"></div>
+    </div>
+  </details>
+  <details>
+    <summary>سجل ضغط الدم</summary>
+    <div class="fu-panel">
+      <form id="fuBpForm">
+        <div class="fu-grid">
+          <div><label for="fuSys">الانقباضي (ملم زئبق)</label><input id="fuSys" type="number" min="1" max="400" step="1" inputmode="numeric" required></div>
+          <div><label for="fuDia">الانبساطي (ملم زئبق)</label><input id="fuDia" type="number" min="1" max="400" step="1" inputmode="numeric" required></div>
+          <div><label for="fuBpDate">تاريخ القياس</label><input id="fuBpDate" type="date" required></div>
+        </div>
+        <label for="fuBpNote">ملاحظة (اختياري)</label><input id="fuBpNote" type="text" maxlength="300">
+        <div class="fu-buttons"><button class="go fu-action" id="fuBpSave" type="submit">حفظ</button><button class="go sec fu-action" id="fuBpCancel" type="button" hidden>إلغاء التعديل</button></div>
+      </form>
+      <div id="fuBpList"></div>
+    </div>
+  </details>
+  <details>
+    <summary>زيارات الطبيب ومواعيد الفحص</summary>
+    <div class="fu-panel">
+      <form id="fuVisitForm">
+        <label for="fuVisitTitle">اسم الموعد</label><input id="fuVisitTitle" type="text" maxlength="120" placeholder="مثال: موعد تحليل التراكمي" required>
+        <div class="fu-grid">
+          <div><label for="fuVisitDate">التاريخ</label><input id="fuVisitDate" type="date" required></div>
+          <div><label for="fuVisitTime">الوقت (اختياري)</label><input id="fuVisitTime" type="time"></div>
+        </div>
+        <label for="fuVisitNote">ملاحظة (اختياري)</label><input id="fuVisitNote" type="text" maxlength="300">
+        <div class="fu-buttons"><button class="go fu-action" id="fuVisitSave" type="submit">حفظ</button><button class="go sec fu-action" id="fuVisitCancel" type="button" hidden>إلغاء التعديل</button></div>
+      </form>
+      <div id="fuVisitList"></div>
+    </div>
+  </details>
+  <details>
+    <summary>أسئلتي للطبيب</summary>
+    <div class="fu-panel">
+      <form id="fuQuestionForm">
+        <label for="fuQuestionText">سؤال تريد مناقشته في الزيارة</label><textarea id="fuQuestionText" maxlength="500" required></textarea>
+        <div class="fu-buttons"><button class="go fu-action" id="fuQuestionSave" type="submit">حفظ</button><button class="go sec fu-action" id="fuQuestionCancel" type="button" hidden>إلغاء التعديل</button></div>
+      </form>
+      <div id="fuQuestionList"></div>
+    </div>
+  </details>
+  <button class="go sec" id="fuExport" type="button">تنزيل سجل المتابعة (CSV)</button>
+  <button class="go sec" data-go="more" type="button">فتح التقرير والنسخ الاحتياطي</button>
+</section>
+
 <section id="more">
   <h2>📄 تقرير للطبيب</h2>
   <div class="card">
     <p>ملخص قراءاتك وأدويتك في ورقة واحدة لتريها لطبيبك.</p>
     <label for="pname">اسم المريض (يظهر في التقرير)</label>
     <input id="pname" type="text" autocomplete="off" placeholder="مثال: أحمد محمد">
+    <label class="fu-check" for="reportFollowup"><input type="checkbox" id="reportFollowup"> إرفاق ملخص الفحوص والضغط والزيارات وأسئلتي</label>
     <button class="go" id="rprint">🖨️ اطبع التقرير أو احفظه PDF</button>
     <button class="go sec" id="rshare">📤 أرسله (واتساب وغيره)</button>
     <p class="note">في صفحة الطباعة اختر «حفظ كـ PDF» إن أردت ملفاً.</p>
@@ -309,10 +442,18 @@ details p{margin:0;padding:0 16px 14px}
   <h2>💾 نسخة احتياطية</h2>
   <div class="card">
     <p>احتفظ بنسخة من سجلك المحلي لنقله عند تغيير الهاتف.</p>
-    <button class="go" id="bexp">⬇️ احفظ نسخة من بياناتي</button>
+    <button class="go" id="bcrypt" type="button">🔒 احفظ نسخة مشفّرة</button>
+    <button class="go sec" id="bexp" type="button">⬇️ احفظ نسخة عادية غير مشفّرة</button>
+    <form id="bpanel" hidden>
+      <h3 id="btitle">كلمة مرور النسخة</h3>
+      <label for="bpass">كلمة المرور</label><input id="bpass" type="password" maxlength="256" autocomplete="new-password">
+      <div id="bconfirmRow"><label for="bconfirm">أعد كتابة كلمة المرور</label><input id="bconfirm" type="password" maxlength="256" autocomplete="new-password"></div>
+      <div class="fu-buttons"><button class="go fu-action" id="baction" type="submit">متابعة</button><button class="go sec fu-action" id="bcancel" type="button">إلغاء</button></div>
+      <p class="note">اختر عشرة محارف على الأقل. احتفظ بكلمة المرور لتتمكّن من فتح النسخة.</p>
+    </form>
     <label class="lb">⬆️ استرجع نسخة محفوظة<input class="file" id="bimp" type="file" accept=".json,application/json"></label>
     <div id="bmsg" role="status" aria-live="polite"></div>
-    <p class="note">يحتوي الملف على بيانات صحية. احتفظ به في مكان آمن. الاسترجاع يستبدل البيانات الحالية.</p>
+    <p class="note">التشفير يحمي ملف النسخة المشفّرة عند تنزيله. تُقبل النسخ العادية القديمة، ويستبدل الاسترجاع الأجزاء الموجودة في الملف بعد موافقتك.</p>
   </div>
 </section>
 
@@ -375,7 +516,7 @@ details p{margin:0;padding:0 16px 14px}
     <p class="note">المساعد الطبي لا يستبدل الطبيب؛ بل يساعده ويساعدك.</p>
   </div>
   <button class="go sec" data-go="research">مختبر التنبؤ البحثي</button>
-  <p class="note">إصدار التطبيق <b dir="ltr">v51</b></p>
+  <p class="note">إصدار التطبيق <b dir="ltr">v52</b></p>
 </section>
 <section id="research">
   <h2>مختبر التنبؤ البحثي</h2>
@@ -446,6 +587,9 @@ details p{margin:0;padding:0 16px 14px}
   const auth = window.firebase ? firebase.auth() : null;
   const db = window.firebase ? firebase.firestore() : null;
 </script>
+<script src="rafiq-storage.js"></script>
+<script src="rafiq-backup.js"></script>
+<script src="rafiq-followup.js"></script>
 <script src="app.js"></script>
 <script src="nutrition.js"></script>
 <script src="glucose-lab.js"></script>

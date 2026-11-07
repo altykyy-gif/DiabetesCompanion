@@ -1,6 +1,7 @@
-const cacheName = "rafiq-v51";
+const cacheName = "rafiq-v52";
 const shell = [
   "./", "index.html", "app.js", "manifest.webmanifest",
+  "rafiq-storage.js", "rafiq-followup.js", "rafiq-backup.js",
   "nutrition.js", "glucose-lab.js", "glucose-study.json", "supervisor.js",
   "icons/icon-192.png", "icons/icon-512.png",
   "vendor/firebase-app-compat.js", "vendor/firebase-auth-compat.js",

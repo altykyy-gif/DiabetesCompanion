@@ -1,21 +1,22 @@
 "use strict";
 
-const profileKeys = ["rafiq_log", "rafiq_meds", "rafiq_taken", "rafiq_rem", "rafiq_fs", "rafiq_daily"];
+const profileKeys = ["rafiq_log", "rafiq_meds", "rafiq_taken", "rafiq_rem", "rafiq_fs", "rafiq_daily", "rafiq_followup"];
 const legacySessionKeys = [
   "rafiq_link", "rafiq_sent", "rafiq_rsync", "rafiq_rsync2", "rafiq_meds_sent",
   "rafiq_unread", "rafiq_note_seen", "rafiq_note_text", "rafiq_note_init", "rafiq_reply_init"
 ];
 const migrationKey = "rafiq-v50:migrated";
 const highGlucose = 300;
-const persistentHighLabel = "خطر: سكر مستمر عند 300 أو أعلى";
-const persistentHighAdvice = "خطر: استمر السكر عند 300 ملغ/دل أو أعلى. توجّه إلى أقرب قسم طوارئ فورًا.";
+const consecutiveHighLabel = "تنبيه: قراءتان مرتفعتان متتاليتان";
+const consecutiveHighNote = "آخر قراءتين مسجلتين عند 300 ملغ/دل أو أعلى. راجع توقيت القياسين.";
 
 function profileStorage(uid) {
   const prefix = uid ? "rafiq-v50:user:" + encodeURIComponent(uid) + ":" : "rafiq-v50:local:";
+  const store = globalThis.RafiqStorage?.store || localStorage;
   return {
-    getItem(key) { return localStorage.getItem(prefix + key); },
-    setItem(key, value) { localStorage.setItem(prefix + key, value); },
-    removeItem(key) { localStorage.removeItem(prefix + key); }
+    getItem(key) { return store.getItem(prefix + key); },
+    setItem(key, value) { store.setItem(prefix + key, value); },
+    removeItem(key) { store.removeItem(prefix + key); }
   };
 }
 
@@ -107,12 +108,12 @@ function validTimestamp(value) {
   return Number.isSafeInteger(value) && value > 0 && value <= 8640000000000000;
 }
 
-function persistentHigh(recent) {
+function consecutiveHigh(recent) {
   return recent.length >= 2 && recent[0].v >= highGlucose && recent[1].v >= highGlucose;
 }
 
 function judge(v, w) {
-  if (v < 54) return ["bad","خطر: السكر منخفض جدًا. اطلب المساعدة فورًا. إذا كنت واعيًا وقادرًا على البلع فتناول سكرًا سريع المفعول. عند فقدان الوعي أو تعذّر البلع يجب الاتصال بالطوارئ فورًا.","هبوط شديد"];
+  if (v < 54) return ["bad","خطر: السكر منخفض جدًا. اطلب المساعدة فورًا. إذا كنت واعيًا وقادرًا على البلع فتناول سكرًا سريع المفعول. عند فقدان الوعي أو تعذّر البلع يجب الاتصال بالطوارئ فورًا.","منخفض جدًا"];
   if (v < 70) return ["bad","السكر منخفض. للبالغ القادر على البلع، تناول 15 غرامًا من الكربوهيدرات سريعة المفعول وأعد القياس بعد 15 دقيقة. افتح إرشادات الطوارئ للمزيد.","منخفض"];
   if (v >= highGlucose) return ["bad","السكر عند 300 ملغ/دل أو أعلى. إذا استمر عند هذا المستوى، أو صَعُب التنفس أو منعك القيء من الاحتفاظ بالسوائل، فتوجّه إلى الطوارئ فورًا.","مرتفع جدًا"];
   if (w === "f") {
@@ -215,6 +216,7 @@ function backupEntries(backup) {
         return {c:value.c,l:value.l};
       })
     }),
+    rafiq_followup: () => globalThis.RafiqFollowup.normalize(data.rafiq_followup),
     rafiq_fs: () => {
       const size = Number(data.rafiq_fs);
       if (!Number.isFinite(size)) throw new Error("invalid font size");
@@ -240,6 +242,12 @@ document.querySelectorAll("[data-go]").forEach(function(b){b.onclick=function(){
 
 function load(){const a=readJSON(storage,K,[]);return Array.isArray(a)?a:[]}
 function store(a){storage.setItem(K,JSON.stringify(a))}
+const followup=globalThis.RafiqFollowup, byId=id=>document.getElementById(id);
+let filters={from:"",to:"",context:""}, shown=15;
+function filtered(rows=load()){
+ return followup?followup.readingsIn(rows,filters):rows.map((reading,index)=>({reading,index}));
+}
+window.rafiqFilteredReadings=()=>filtered().map(row=>row.reading);
 
 window.rafiqJudge=judge;
 // تصنيف الخطورة الموحَّد: يستخدمه التطبيق ولوحة الطبيب (rs: القراءات الأحدث أولاً، كل واحدة {v,w})
@@ -247,23 +255,64 @@ window.rafiqLevel=function(rs){
  if(!rs||!rs.length)return{k:4,t:"لا قراءات بعد",c:""};
  const lastThree=rs.slice(0,3);
  const severeLow=lastThree.filter(r=>r.v<54);
- if(severeLow.length)return{k:0,t:"خطر: هبوط شديد",c:"bad",evidence:severeLow};
- if(persistentHigh(rs))return{k:0,t:persistentHighLabel,c:"bad",evidence:rs.slice(0,2)};
+ if(severeLow.length)return{k:0,t:"خطر: قراءة منخفضة جدًا",c:"bad",evidence:severeLow};
+ if(consecutiveHigh(rs))return{k:0,t:consecutiveHighLabel,c:"bad",evidence:rs.slice(0,2)};
  const veryHigh=lastThree.filter(r=>r.v>highGlucose);
  if(veryHigh.length)return{k:0,t:"خطر: قراءة مرتفعة جدًا",c:"bad",evidence:veryHigh};
- if(rs[0].v===highGlucose)return{k:2,t:"تنبيه: قراءة عند 300 ملغ/دل",c:"warn",evidence:rs.slice(0,1)};
  const low=rs.slice(0,5).filter(r=>r.v<70);
  if(low.length>=2)return{k:1,t:"تنبيه: هبوط متكرر",c:"bad",evidence:low};
+ if(low.length)return{k:1,t:"تنبيه: قراءة منخفضة",c:"bad",evidence:low};
+ const at300=lastThree.filter(r=>r.v===highGlucose);
+ if(at300.length)return{k:1,t:"تنبيه: قراءة عند 300 ملغ/دل",c:"bad",evidence:at300};
  if(lastThree.length===3&&lastThree.every(r=>r.v>=70&&judge(r.v,r.w==="f"?"f":"a")[0]!=="ok")){
    return{k:2,t:"مرتفع في آخر القراءات",c:"warn",evidence:lastThree};
  }
+ if(judge(rs[0].v,rs[0].w)[0]==="warn")return{k:2,t:"تنبيه: آخر قراءة مرتفعة",c:"warn",evidence:rs.slice(0,1)};
  return{k:3,t:"مستقر",c:"ok"}};
-function render(){var a=load(),h=document.getElementById("hist");
- if(!a.length){h.innerHTML="<p>لا توجد قراءات بعد. اكتب أول قراءة فوق 👆</p>";return}
- h.innerHTML=a.slice().reverse().slice(0,15).map(function(r,i){var idx=a.length-1-i;
+function readMessage(text){const e=byId("readMessage");if(e)e.textContent=text}
+function render(){var a=load(),h=byId("hist"),entries=filtered(a).reverse(),visible=entries.slice(0,shown);
+ const more=byId("readMore"),count=byId("readCount");
+ if(more)more.hidden=entries.length<=shown;
+ if(count)count.textContent=a.length?"القراءات المعروضة: "+visible.length+" من "+entries.length+" مطابقة ("+a.length+" في السجل).":"";
+ if(!entries.length){h.innerHTML=a.length?"<p>لا توجد قراءات تطابق التصفية الحالية.</p>":"<p>لا توجد قراءات بعد. اكتب أول قراءة فوق 👆</p>";return}
+ h.innerHTML=visible.map(function({reading:r,index:idx}){
   var j=validGlucose(r?.v)?judge(r.v,r.w):["warn","","قيمة خارج النطاق"];
-  return '<div class="row"><div><b>'+esc(r?.v)+'</b> ملغ/دل<br><span class="note">'+(r?.w==="f"?"صائم":"بعد الأكل")+' – '+esc(r?.d)+'</span></div><span class="pill '+j[0]+'">'+j[2]+'</span><button class="del" data-i="'+idx+'" aria-label="احذف القراءة">حذف</button></div>'}).join("");
- h.querySelectorAll(".del").forEach(function(b){b.onclick=function(){var x=load();x.splice(+b.dataset.i,1);store(x);render()}})}
+  const when=validTimestamp(Number(r?.ts))?new Date(Number(r.ts)).toLocaleString("ar-LY",{year:"numeric",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):r?.d;
+  return '<div class="row"><div><b>'+esc(r?.v)+'</b> ملغ/دل<br><span class="note">'+(r?.w==="f"?"صائم":"بعد الأكل")+' – '+esc(when)+'</span></div><span class="pill '+j[0]+'">'+j[2]+'</span><button class="del" data-i="'+idx+'" aria-label="احذف القراءة">حذف</button></div>'}).join("");
+ h.querySelectorAll(".del").forEach(function(b){b.onclick=function(){
+  const i=Number(b.dataset.i);
+  if(!confirm("حذف القراءة من سجل هذا الجهاز؟ إذا سبق إرسالها إلى طبيبك، فستبقى نسخته لديه."))return;
+  const x=load(),status=byId("res");
+  if(!Number.isInteger(i)||i<0||i>=x.length||JSON.stringify(a[i])!==JSON.stringify(x[i])){
+    status.className="res warn";status.textContent="تغيّر السجل. اختر القراءة مرة أخرى.";render();return;
+  }
+  x.splice(i,1);
+  try{store(x);status.className="res ok";status.textContent="تم حذف القراءة من هذا الجهاز.";render();}
+  catch{status.className="res bad";status.textContent="تعذّر حذف القراءة من هذا الجهاز.";}
+ }})}
+byId("readFilter")?.addEventListener("submit",event=>{
+ event.preventDefault();
+ const candidate={from:byId("readFrom").value,to:byId("readTo").value,context:byId("readContext").value};
+ try{
+  if(!followup)return;
+  followup.readingsIn([],candidate);filters=candidate;shown=15;render();
+  window.rafiqRefreshReadingChart?.();
+  readMessage("طُبّقت التصفية. القراءات القديمة بلا تاريخ كامل تظهر عند إلغاء الفترة.");
+ }catch{readMessage("تحقّق من التواريخ؛ تاريخ البداية يجب أن يسبق تاريخ النهاية أو يساويه.")}
+});
+byId("readReset")?.addEventListener("click",()=>{
+ byId("readFilter").reset();filters={from:"",to:"",context:""};shown=15;render();
+ window.rafiqRefreshReadingChart?.();readMessage("تُعرض جميع القراءات.");
+});
+byId("readMore")?.addEventListener("click",()=>{shown+=25;render()});
+byId("readExport")?.addEventListener("click",()=>{
+ try{
+  const rows=filtered();
+  if(!rows.length){readMessage("لا توجد قراءات مطابقة للتصدير.");return}
+  followup.download(followup.readingsCSV(rows),"rafiq-readings-"+followup.localDay()+".csv");
+  readMessage("تم إعداد ملف القراءات المطابقة للتنزيل.");
+ }catch{readMessage("تعذّر تصدير القراءات.")}
+});
 document.getElementById("save").onclick=function(){
  const input=document.getElementById("val"), w=document.getElementById("when").value;
  const v=input.valueAsNumber, result=document.getElementById("res");
@@ -277,7 +326,7 @@ document.getElementById("save").onclick=function(){
  catch {result.className="res bad";result.textContent="تعذّر حفظ القراءة على هذا الجهاز.";return}
  const recent=a.filter(entry=>validGlucose(entry?.v)).slice().sort((x,y)=>(Number(y.ts)||0)-(Number(x.ts)||0));
  result.className="res "+j[0];
- result.textContent=v>=highGlucose&&persistentHigh(recent)?persistentHighAdvice:j[1];
+ result.textContent=j[1]+(v>=highGlucose&&consecutiveHigh(recent)?" "+consecutiveHighNote:"");
  window.rafiqPush?.();
  render();
  input.value="";
@@ -346,9 +395,9 @@ function fmt(t){var a=String(t).split(":"),h=+a[0];return (h%12||12)+":"+a[1]+(h
 function logs(){const a=g(LK,[]);return Array.isArray(a)?a.filter(r=>validGlucose(r?.v)):[]}
 /* 1) الرسم البياني */
 function chart(){
- var box=document.getElementById("chart"),a=logs().slice(-10);
- if(a.length<2){box.innerHTML="<p>سجّل قراءتين على الأقل لتظهر الرسمة 📈</p>";return}
- var W=340,H=210,L=30,R=12,T=18,B=22,mx=Math.max(300,Math.max.apply(null,a.map(function(r){return r.v}))+10),mn=40;
+ var box=document.getElementById("chart"),a=(window.rafiqFilteredReadings?.()||logs()).filter(r=>validGlucose(r?.v)).slice(-10);
+ if(a.length<2){box.innerHTML="<p>يظهر الرسم عند توفر قراءتين على الأقل في السجل المعروض 📈</p>";return}
+ var W=340,H=210,L=30,R=12,T=18,B=22,mx=Math.max(315,Math.max.apply(null,a.map(function(r){return r.v}))+10),mn=Math.min(40,Math.min(...a.map(r=>r.v))-8);
  function y(v){return T+(mx-v)/(mx-mn)*(H-T-B)}
  function x(i){return W-R-i*(W-L-R)/(a.length-1)}
  var col={ok:"var(--ok)",warn:"var(--warn)",bad:"var(--bad)"};
@@ -358,10 +407,10 @@ function chart(){
  var pts=[];a.forEach(function(r,i){pts.push(x(i).toFixed(1)+","+y(r.v).toFixed(1))});
  svg+='<polyline points="'+pts.join(" ")+'" fill="none" stroke="var(--main)" stroke-width="2.5"/>';
  a.slice().reverse().forEach(function(r,j){var i=a.length-1-j;
-  svg+='<circle cx="'+x(i).toFixed(1)+'" cy="'+y(r.v).toFixed(1)+'" r="6" fill="'+(col[r.c]||"var(--main)")+'" stroke="var(--card)" stroke-width="2"/><text x="'+x(i).toFixed(1)+'" y="'+(y(r.v)-10).toFixed(1)+'" font-size="12" font-weight="700" text-anchor="middle" fill="var(--ink)">'+r.v+'</text>'});
+  svg+='<circle cx="'+x(i).toFixed(1)+'" cy="'+y(r.v).toFixed(1)+'" r="6" fill="'+col[judge(r.v,r.w)[0]]+'" stroke="var(--card)" stroke-width="2"/><text x="'+x(i).toFixed(1)+'" y="'+(y(r.v)-10).toFixed(1)+'" font-size="12" font-weight="700" text-anchor="middle" fill="var(--ink)">'+r.v+'</text>'});
  svg+='<text x="'+(W-R)+'" y="'+(H-4)+'" font-size="11" text-anchor="end" fill="var(--sub)">الأقدم</text><text x="'+L+'" y="'+(H-4)+'" font-size="11" fill="var(--sub)">الأحدث</text></svg>';
  var vs=a.map(function(r){return r.v}),avg=Math.round(vs.reduce(function(p,c){return p+c},0)/vs.length);
- box.innerHTML=svg+'<div class="stats"><span>'+avg+'<small>المتوسط</small></span><span>'+Math.max.apply(null,vs)+'<small>الأعلى</small></span><span>'+Math.min.apply(null,vs)+'<small>الأدنى</small></span></div><p class="note">المنطقة الخضراء = المعدل الجيد تقريباً (70–180). آخر '+a.length+' قراءات.</p>';
+ box.innerHTML=svg+'<div class="stats"><span>'+avg+'<small>المتوسط</small></span><span>'+Math.max.apply(null,vs)+'<small>الأعلى</small></span><span>'+Math.min.apply(null,vs)+'<small>الأدنى</small></span></div><p class="note">المنطقة المظللة مرجع بصري (70–180 ملغ/دل). يعرض الرسم آخر '+a.length+' من القراءات المطابقة.</p>';
 }
 /* 2) تنبيه المخاطر */
 function trend(a){
@@ -387,12 +436,13 @@ function insights(){
  box.innerHTML=m.length?'<h3 style="margin-top:0">🔎 ملاحظات من بياناتك</h3><ul>'+m.map(function(x){return "<li>"+x+"</li>"}).join("")+'</ul><p class="note">ملاحظات تجريبية من بياناتك فقط وليست تشخيصاً. اعرضها على طبيبك.</p>':""}
 function risk(){
  var a=logs().slice().sort((x,y)=>(Number(x.ts)||0)-(Number(y.ts)||0)),l3=a.slice(-3),l5=a.slice(-5),m=[];
- function hi(r){return r.v>=70&&r.c!=="ok"}
+ function hi(r){return r.v>=70&&judge(r.v,r.w)[0]!=="ok"}
  if(l3.some(function(r){return r.v<54}))m.push(["bad","⚠️ ظهرت قراءة منخفضة جدًا (أقل من 54). إذا كان الهبوط قائمًا الآن، اطلب المساعدة فورًا واتبع إرشادات الطوارئ."]);
- if(persistentHigh(l3.slice().reverse()))m.push(["bad","⚠️ "+persistentHighAdvice]);
- else if(l3.some(r=>r.v>=highGlucose))m.push(["bad","⚠️ "+judge(highGlucose,"f")[1]]);
+ if(consecutiveHigh(l3.slice().reverse()))m.push(["bad","⚠️ "+consecutiveHighNote]);
+ if(l3.some(r=>r.v>=highGlucose))m.push(["bad","⚠️ سُجّلت قراءة عند 300 ملغ/دل أو أعلى. إذا ظلّ القياس الحالي عند هذا المستوى، أو صَعُب التنفس أو منعك القيء من الاحتفاظ بالسوائل، فتوجّه إلى الطوارئ فورًا."]);
  if(!m.length){
   if(l5.filter(function(r){return r.v<70}).length>=2)m.push(["bad","⚠️ تكرر نزول السكر في قراءاتك الأخيرة. لا تتأخر عن وجباتك، وأخبر طبيبك قريباً."]);
+  else if(l3.at(-1)?.v<70)m.push(["bad","⚠️ آخر قراءة مسجّلة منخفضة. إذا كان الهبوط قائمًا الآن، راجع إرشادات الطوارئ في الموقع."]);
   if(l3.length===3&&l3.every(hi))m.push(["warn","⚠️ آخر 3 قراءات كلها أعلى من المطلوب. راجع أكلك وموعد دوائك، وأخبر طبيبك في أقرب موعد."]);
   const tr=trend(a);if(tr)m.push(tr);
  }
@@ -400,6 +450,7 @@ function risk(){
  document.querySelectorAll(".risk").forEach(function(d){d.innerHTML=h});
 }
 function refresh(){chart();risk();insights()}
+window.rafiqRefreshReadingChart=chart;
 addEventListener("hashchange",refresh);
 refresh();
 var hist=document.getElementById("hist");
@@ -410,47 +461,133 @@ function data(){var a=logs().slice(-15).reverse(),ms=medicationList(g(MK,[])).so
  return{a:a,ms:ms,avg:vs.length?Math.round(vs.reduce(function(p,c){return p+c},0)/vs.length):0,mx:vs.length?Math.max.apply(null,vs):0,mn:vs.length?Math.min.apply(null,vs):0}}
 function wh(r){return r.w==="f"?"صائم":"بعد الأكل"}
 function pname(){return (document.getElementById("pname").value||"").trim()}
+function selectedFollowup(){return document.getElementById("reportFollowup")?.checked?window.rafiqFollowupReport?.()||[]:[]}
 function text(){var d=data(),pn=pname(),t="تقرير متابعة السكر – رفيق السكري\n"+(pn?"اسم المريض: "+pn+"\n":"")+"التاريخ: "+today()+"\n\n";
- t+=d.a.length?"القراءات (الأحدث أولاً):\n"+d.a.map(function(r){return "• "+r.v+" mg/dL – "+wh(r)+" – "+r.d+" – "+r.t}).join("\n")+"\n\nالمتوسط: "+d.avg+" | الأعلى: "+d.mx+" | الأدنى: "+d.mn:"لا توجد قراءات مسجلة.";
+ t+=d.a.length?"القراءات (الأحدث أولاً):\n"+d.a.map(function(r){return "• "+r.v+" mg/dL – "+wh(r)+" – "+r.d+" – "+judge(r.v,r.w)[2]}).join("\n")+"\n\nالمتوسط: "+d.avg+" | الأعلى: "+d.mx+" | الأدنى: "+d.mn:"لا توجد قراءات مسجلة.";
  t+="\n\nالأدوية:\n"+(d.ms.length?d.ms.map(function(m){return "• "+m.n+" – "+fmt(m.t)+(m.o?" ("+m.o+")":"")}).join("\n"):"لا توجد أدوية مسجلة.");
+ const summary=selectedFollowup();
+ if(summary.length)t+="\n\nملخص المتابعة:\n"+summary.map(line=>"• "+line).join("\n");
  return t+"\n\nملاحظة: التقرير من تطبيق إرشادي ولا يغني عن الفحص الطبي."}
 document.getElementById("rprint").onclick=function(){var d=data(),h='<h2>تقرير متابعة السكر – رفيق السكري</h2><p>الاسم: '+(pname()?esc(pname()):'____________________')+' &nbsp; التاريخ: '+today()+'</p>';
- h+=d.a.length?'<table><tr><th>القراءة (mg/dL)</th><th>الوقت</th><th>التاريخ</th><th>التقييم</th></tr>'+d.a.map(function(r){return '<tr><td>'+r.v+'</td><td>'+wh(r)+'</td><td>'+esc(r.d)+'</td><td>'+esc(r.t)+'</td></tr>'}).join("")+'</table><p>المتوسط: '+d.avg+' – الأعلى: '+d.mx+' – الأدنى: '+d.mn+'</p>':'<p>لا توجد قراءات مسجلة.</p>';
+ h+=d.a.length?'<table><tr><th>القراءة (mg/dL)</th><th>السياق</th><th>التاريخ</th><th>التقييم</th></tr>'+d.a.map(function(r){return '<tr><td>'+r.v+'</td><td>'+wh(r)+'</td><td>'+esc(r.d)+'</td><td>'+judge(r.v,r.w)[2]+'</td></tr>'}).join("")+'</table><p>المتوسط: '+d.avg+' – الأعلى: '+d.mx+' – الأدنى: '+d.mn+'</p>':'<p>لا توجد قراءات مسجلة.</p>';
  h+='<h3>الأدوية</h3>'+(d.ms.length?'<table><tr><th>الدواء</th><th>الوقت</th><th>ملاحظة</th></tr>'+d.ms.map(function(m){return '<tr><td>'+esc(m.n)+'</td><td>'+esc(fmt(m.t))+'</td><td>'+esc(m.o||"")+'</td></tr>'}).join("")+'</table>':'<p>لا توجد أدوية مسجلة.</p>');
+ const summary=selectedFollowup();
+ if(summary.length)h+='<h3>ملخص المتابعة</h3><ul>'+summary.map(line=>'<li>'+esc(line)+'</li>').join("")+'</ul>';
  h+='<p style="font-size:12px">التقرير من تطبيق إرشادي ولا يغني عن الفحص الطبي.</p>';
  document.getElementById("printarea").innerHTML=h;window.print()};
 document.getElementById("rshare").onclick=function(){var t=text();
  if(navigator.share){navigator.share({title:"تقرير السكر",text:t}).catch(function(){})}
- else window.open("https://wa.me/?text="+encodeURIComponent(t),"_blank")};
+ else window.open("https://wa.me/?text="+encodeURIComponent(t),"_blank","noopener,noreferrer")};
 /* 4) نسخ احتياطي */
-var bm=document.getElementById("bmsg");
-function say(c,t){bm.className="res "+c;bm.textContent=t}
-document.getElementById("bexp").onclick=function(){
- var o={app:"rafiq",v:1,date:new Date().toISOString(),data:{}};
- KEYS.forEach(function(k){try{var v=storage.getItem(k);if(v!==null)o.data[k]=JSON.parse(v)}catch(e){}});
- try{var b=new Blob([JSON.stringify(o)],{type:"application/json"}),u=URL.createObjectURL(b),a=document.createElement("a");
-  a.href=u;a.download="rafiq-backup-"+new Date().toISOString().slice(0,10)+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},4000);
-  say("ok","تم حفظ الملف. احتفظ به في مكان آمن.")}catch(e){say("bad","تعذّر الحفظ على هذا الجهاز.")}};
-document.getElementById("bimp").onchange=function(ev){
- const file=ev.target.files[0];
- if(!file)return;
- const fr=new FileReader();
- fr.onload=function(){
-  try {
-   const entries=backupEntries(JSON.parse(fr.result));
-   if(!confirm("سيُستبدل السجل الحالي. تابع إذا كانت النسخة تخصك. عند تفعيل الربط تُزامَن بيانات هذا السجل مع طبيبك."))return;
-   writeProfile(storage,entries);
-   window.rafiqInvalidateReadings?.();
-   say("ok","تم استرجاع بياناتك ✅");
-   setTimeout(()=>location.reload(),700);
-  } catch(error) {
-   say("bad","تعذّر الاسترجاع. تأكّد من أن الملف نسخة صالحة، وأن القراءات فيها بين 20 و700 ملغ/دل.");
-  } finally {ev.target.value="";}
+const $=id=>document.getElementById(id), bm=$("bmsg"), cryptoBackup=globalThis.RafiqBackup;
+let operation=null,pending=null,busy=false;
+function say(c,t){bm.className=t?"res "+c:"";bm.textContent=t}
+function lock(value){
+ busy=value;
+ ["bexp","bimp","bcrypt","baction","bcancel"].forEach(id=>{const e=$(id);if(e)e.disabled=value});
+}
+function closeBackup(){
+ operation=null;pending=null;
+ if($("bpanel")){
+  $("bpanel").hidden=true;$("bpass").value="";$("bconfirm").value="";
+ }
+}
+function openBackup(mode,envelope=null){
+ closeBackup();
+ if(!cryptoBackup?.supported()){
+  say("warn","التشفير غير متاح في هذه الصفحة. افتح الموقع عبر HTTPS أو استخدم النسخة العادية.");return;
+ }
+ operation=mode;pending=envelope;
+ $("btitle").textContent=mode==="export"?"كلمة مرور جديدة للنسخة المشفّرة":"أدخل كلمة مرور النسخة المشفّرة";
+ $("bconfirmRow").hidden=mode!=="export";
+ $("baction").textContent=mode==="export"?"تشفير وتنزيل":"فتح النسخة";
+ $("bpass").autocomplete=mode==="export"?"new-password":"current-password";
+ $("bpanel").hidden=false;say("","");$("bpass").focus();
+}
+function backupPayload(){
+ const data={};
+ for(const k of KEYS){const v=storage.getItem(k);if(v!==null)data[k]=JSON.parse(v);}
+ return {app:"rafiq",v:2,date:new Date().toISOString(),owner:scopeUid,data};
+}
+function saveBackup(payload,encrypted){
+ const content=JSON.stringify(payload);
+ const blob=new Blob([content],{type:"application/json"});
+ if(blob.size>(cryptoBackup?.MAX_FILE_BYTES||18*1024*1024))throw new Error("backup too large");
+ const url=URL.createObjectURL(blob),a=document.createElement("a");
+ a.href=url;a.download="rafiq-"+(encrypted?"encrypted-":"")+"backup-"+todayISO()+".json";document.body.appendChild(a);
+ try{a.click();}finally{a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);}
+}
+function todayISO(){return new Date().toISOString().slice(0,10)}
+async function restoreBackup(payload){
+ const entries=backupEntries(payload);
+ const other=typeof payload.owner==="string"&&payload.owner!==scopeUid;
+ const note=other?"أُنشئت هذه النسخة في حساب مختلف. تابع فقط إذا كانت البيانات تخصك. ":"";
+ if(!confirm(note+"سيُستبدل ما يقابله من السجل الحالي بالأجزاء الموجودة في الملف. عند تفعيل الربط، تتزامن البيانات المعتادة مع طبيبك."))return false;
+ writeProfile(storage,entries);
+ window.rafiqInvalidateReadings?.();
+ say("ok","تم استرجاع بياناتك ✅");
+ await globalThis.RafiqStorage?.flush();
+ setTimeout(()=>location.reload(),700);
+ return true;
+}
+function invalidBackup(){
+ say("bad","تعذّر الاسترجاع. تأكّد من أن الملف نسخة صالحة، وأن قراءات السكر فيها بين 20 و700 ملغ/دل.");
+}
+$("bexp").onclick=function(){
+ if(busy)return;
+ try{saveBackup(backupPayload(),false);closeBackup();say("ok","تم إعداد النسخة العادية للتنزيل. احفظها في مكان خاص.");}
+ catch{say("bad","تعذّر حفظ النسخة على هذا الجهاز.");}
+};
+if($("bcrypt"))$("bcrypt").onclick=()=>{if(!busy)openBackup("export")};
+if($("bcancel"))$("bcancel").onclick=()=>{if(!busy){closeBackup();say("","");}};
+if($("bpanel"))$("bpanel").onsubmit=async event=>{
+ event.preventDefault();
+ if(!operation||busy)return;
+ const pass=$("bpass").value,mode=operation;
+ if(!cryptoBackup.passwordOK(pass)){
+  say("warn","اكتب كلمة مرور النسخة، بعشرة محارف على الأقل.");return;
+ }
+ if(mode==="export"&&pass!==$("bconfirm").value){
+  say("warn","كلمتا المرور غير متطابقتين.");return;
+ }
+ $("bpass").value="";$("bconfirm").value="";
+ lock(true);say("","");let restoring=false;
+ try{
+  if(mode==="export"){
+   saveBackup(await cryptoBackup.encrypt(backupPayload(),pass),true);
+   closeBackup();say("ok","تم إعداد النسخة المشفّرة للتنزيل. ستحتاج كلمة المرور عند استرجاعها.");
+  }else{
+   let payload;
+   try{payload=await cryptoBackup.decrypt(pending,pass);}
+   catch{say("bad","تعذّر فتح النسخة. تأكّد من كلمة المرور وسلامة الملف.");$("bpass").focus();return;}
+   restoring=await restoreBackup(payload);
+   closeBackup();
+  }
+ }catch{if(mode==="export")say("bad","تعذّر إنشاء النسخة المشفّرة.");else invalidBackup();}
+ finally{if(!restoring)lock(false);}
+};
+$("bimp").onchange=function(ev){
+ const file=ev.target.files[0];if(!file||busy)return;
+ closeBackup();
+ if(file.size>(cryptoBackup?.MAX_FILE_BYTES||18*1024*1024)){
+  ev.target.value="";say("bad","ملف النسخة أكبر من الحجم الذي يمكن استرجاعه.");return;
+ }
+ const fr=new FileReader();lock(true);say("","");
+ fr.onload=async function(){
+  let restoring=false;
+  try{
+   const payload=JSON.parse(fr.result);
+   if(payload?.encrypted===true&&payload.app==="rafiq")openBackup("import",payload);
+   else restoring=await restoreBackup(payload);
+  }catch{invalidBackup();}
+  finally{ev.target.value="";if(!restoring)lock(false);}
  };
- fr.onerror=function(){ev.target.value="";say("bad","تعذّرت قراءة ملف النسخة الاحتياطية.")};
- fr.readAsText(file);
+ fr.onerror=fr.onabort=function(){ev.target.value="";lock(false);say("bad","تعذّرت قراءة ملف النسخة الاحتياطية.");};
+ try{fr.readAsText(file);}catch{fr.onerror();}
 };
 })();
+
+globalThis.RafiqFollowup?.mount(storage);
 
 (function(){
 var DK="rafiq_daily";
@@ -503,7 +640,7 @@ render();
       p.then(function(v){clearTimeout(t);res(v)},function(e){clearTimeout(t);rej(e)});
     });
   }
-  var APP_VER="v51";
+  var APP_VER="v52";
   function showEvidence(rows) {
     if (!rows?.length) return "";
     const evidence=rows.map(r=>{
@@ -516,7 +653,7 @@ render();
   // رسم القائمة: الأسماء تظهر فوراً، والحالة تُحدَّث بعد قراءة القراءات
   function draw(rows){
     var dg=rows.filter(function(r){return r.lv&&r.lv.k<=1}).length;
-    var al=$("dAlert");if(al){al.hidden=!dg;al.textContent=dg?"⚠️ "+dg+" مريض بحالة خطر أو هبوط، راجعهم أولاً.":""}
+    var al=$("dAlert");if(al){al.hidden=!dg;al.textContent=dg?"⚠️ عدد الملفات ذات القراءات ذات الأولوية للمراجعة: "+dg+".":""}
     $("dList").innerHTML=rows.map(function(r){
       var lv=r.lv||{t:"جارٍ حساب الحالة…",c:""};
       var st=r.linked?"🔗 مرتبط بالتطبيق":"غير مرتبط بعد";
@@ -761,8 +898,8 @@ render();
       var p=res[0].data()||{},rs=res[1],ev=res[2],h="";
       h+="<h3>القراءات (الأحدث أولاً)</h3>";
       h+=rs.size?rs.docs.map(function(x){
-        var r=x.data();
-        return '<div class="res '+esc(r.c||"")+'" style="margin:6px 0"><b>'+esc(r.v)+' mg/dL</b> – '+esc(wh2(r.w))+' – '+esc(r.t||"")+'<br><small dir="ltr">'+esc(r.d||"")+(r.by==="doctor"?" (أضافها الطبيب)":"")+'</small></div>';
+        var r=x.data(),j=validGlucose(r.v)?judge(r.v,r.w):["warn","","قيمة خارج النطاق"];
+        return '<div class="res '+j[0]+'" style="margin:6px 0"><b>'+esc(r.v)+' mg/dL</b> – '+esc(wh2(r.w))+' – '+j[2]+'<br><small dir="ltr">'+esc(r.d||"")+(r.by==="doctor"?" (أضافها الطبيب)":"")+'</small></div>';
       }).join(""):"<p>لا توجد قراءات بعد.</p>";
       var meals=[],tk=[];
       ev.docs.forEach(function(x){
@@ -1497,9 +1634,16 @@ render();
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(error=>console.error("rafiq service worker:",error));
 }
+const profileReady=globalThis.RafiqStorage?.prepare();
+function boot(initialUser){
+  if(!profileReady){startRafiq(initialUser);return;}
+  profileReady.then(()=>{
+    startRafiq(typeof auth!=="undefined"&&auth?auth.currentUser:initialUser);
+  });
+}
 if (typeof auth !== "undefined" && auth) {
   const unsubscribe = auth.onAuthStateChanged(user => {
     unsubscribe();
-    startRafiq(user);
+    boot(user);
   });
-} else startRafiq(null);
+} else boot(null);
